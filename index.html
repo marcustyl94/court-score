@@ -44,7 +44,11 @@ button:disabled{opacity:.35;cursor:default}
 .team.mp{box-shadow:0 0 0 5px var(--danger) inset;animation:mpPulse .9s ease-in-out infinite alternate}
 @keyframes mpPulse{from{box-shadow:0 0 0 3px var(--danger) inset}to{box-shadow:0 0 0 9px var(--danger) inset}}
 .hl.sd{background:var(--danger);color:#fff}
-.status .sub{height:1.5em;line-height:1.5em;font-size:clamp(12px,1.8vmin,16px);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status .sub{height:30px;margin-top:2px;display:flex;justify-content:center;align-items:center;gap:6px;overflow:hidden;cursor:pointer}
+.pc{background:var(--panel);box-shadow:0 0 0 1px var(--line) inset;border-radius:999px;padding:4px 10px;
+  font-size:clamp(11px,1.6vmin,14px);color:var(--muted);white-space:nowrap;font-weight:600}
+.pc b{color:var(--text);font-weight:800}
+.pc.hot{background:var(--panel2);box-shadow:0 0 0 1px var(--muted) inset}
 .tools{display:flex;gap:8px}
 .tbtn{min-height:44px;min-width:44px;padding:0 14px;border-radius:12px;background:var(--panel);font-weight:600;font-size:15px;
   display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 1px var(--line) inset}
@@ -319,7 +323,14 @@ function render() {
   $('undo').disabled = history.length === 0;
   [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
   if (S.sport === 'tennis') renderTennis(); else renderPickle();
+  fitChips();
 }
+/* drop the least important pills (from the end) until the row fits */
+function fitChips() {
+  const el = $('stSub');
+  while (el.scrollWidth > el.clientWidth + 1 && el.children.length > 1) el.removeChild(el.lastElementChild);
+}
+window.addEventListener('resize', () => render());
 function renderTennis() {
   const t = S.tennis, n = S.names, won = tennisSetsWon(t);
   let main, sub, hl = '';
@@ -335,7 +346,9 @@ function renderTennis() {
     else main = 'Set ' + setNo;
     sub = 'Best of ' + t.bestOf + ' sets' + (t.noAd ? ' · No-Ad' : '');
   }
-  $('stMain').textContent = main; $('stSub').textContent = sub;
+  $('stMain').textContent = main; $('stSub').innerHTML = t.winner !== null
+    ? t.sets.map(x => `<span class="pc"><b>${x.g[0]}-${x.g[1]}</b></span>`).join('')
+    : (hl ? `<span class="pc">Set <b>${t.sets.length + 1}</b></span>` : '') + `<span class="pc">Best of <b>${t.bestOf}</b> sets</span><span class="pc"><b>${t.noAd ? 'No-Ad' : 'Advantage'}</b></span><span class="pc">Tiebreak <b>6-6</b></span>`;
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = tennisPointLabel(t, i);
@@ -373,7 +386,11 @@ function renderPickle() {
       sub = (sideout ? call + ' \u00b7 ' : '') + sub;
     }
   }
-  $('stMain').textContent = main; $('stSub').textContent = sub;
+  $('stMain').textContent = main; $('stSub').innerHTML = k.winner !== null
+    ? k.games.map(x => `<span class="pc"><b>${x[0]}-${x[1]}</b></span>`).join('')
+    : (sideout && (gpT[0] || gpT[1]) ? `<span class="pc hot"><b>${call}</b></span>` : '') +
+      (hl || sideout ? `<span class="pc">Game <b>${k.games.length + 1}</b></span>` : '') + `<span class="pc">Play to <b>${k.target}</b></span><span class="pc">Win by <b>${k.winBy2 ? 2 : 1}</b></span><span class="pc">Best of <b>${k.bestOf}</b></span>` +
+      (k.serveMode !== 'off' ? `<span class="pc"><b>${sideout ? 'Side-out' : 'Rally'}</b></span>` : '');
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
@@ -479,6 +496,7 @@ function openSettings() {
 }
 
 /* ---------- wire up ---------- */
+$('stSub').onclick = openSettings;
 $('undo').onclick = () => {
   if (!history.length) return;
   S = fixState(JSON.parse(history.pop())); save(); render(); toast('Undone');
