@@ -448,6 +448,8 @@ function toast(msg) {
 
 function resetStep1() {
   const over = cur().winner !== null;
+  // best of 1 (pickleball, custom): the game in play is the whole match, so there is only one kind of reset
+  if (!over && S.sport !== 'tennis' && cur().bestOf === 1) { resetStep2('match', true); return; }
   openSheet(`
     <h2>${over ? 'Match finished' : 'Reset scores'}</h2>
     <p>${over ? 'This match is over, so there are no game points left to reset. Start a new match to play again.' : 'Choose what to reset. You will be asked to confirm on the next step.'}</p>
@@ -458,9 +460,9 @@ function resetStep1() {
   $('rMatch').onclick = () => resetStep2('match');
   $('rCancel').onclick = closeSheet;
 }
-function resetStep2(scope) {
+function resetStep2(scope, single) {
   openSheet(`
-    <h2>${scope === 'match' ? 'Start a new match?' : 'Reset current game points?'}</h2>
+    <h2>${single ? 'Reset the score?' : scope === 'match' ? 'Start a new match?' : 'Reset current game points?'}</h2>
     <p>Press and hold the button for about one second to confirm. You can still use Undo right after.</p>
     <button class="hold" id="hold"><span class="fill"></span><span class="lbl">Hold to confirm</span></button>
     <button class="opt ghost" id="rBack">Cancel</button>`);
