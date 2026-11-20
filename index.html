@@ -320,9 +320,13 @@ function buildBoard() {
       <div class="badge">WINNER</div>
     </section>`).join('');
   [0, 1].forEach(i => {
-    $('name' + i).addEventListener('change', e => {
-      S.names[i] = e.target.value.trim() || DEFAULT_NAMES[i]; save(); render();
-    });
+    const commitName = e => {
+      const v = e.target.value.trim() || DEFAULT_NAMES[i];
+      e.target.value = v;                       // show the default straight away, even while the field is focused
+      if (S.names[i] !== v) { S.names[i] = v; save(); render(); }
+    };
+    $('name' + i).addEventListener('change', commitName);
+    $('name' + i).addEventListener('blur', commitName);
     $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
     const selectAll = e => { const el = e.target; el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
     $('name' + i).addEventListener('focus', selectAll);
