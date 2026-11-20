@@ -114,6 +114,8 @@ button:disabled{opacity:.35;cursor:default}
 .mc h3{margin:0;font-size:16px}
 .mc p{margin:0;font-size:15px;line-height:1.4;color:var(--text)}
 .mc .use{padding:6px 14px;border-radius:999px;background:var(--bg);font-weight:700;font-size:13px;box-shadow:0 0 0 1px var(--line) inset}
+.mc .seg{margin-top:8px;width:100%}
+.mc .seg button{flex:1;min-height:34px;padding:6px 10px;font-size:14px}
 .mc .sel{display:inline-block;padding:5px 12px;border-radius:999px;background:var(--a);color:#0b0f14;font-weight:800;font-size:12px}
 #hDone{position:sticky;bottom:-22px;background:var(--panel);padding-top:16px;padding-bottom:16px;box-shadow:0 -14px 14px -6px var(--panel),0 0 0 1px var(--line) inset}
 .rules b{color:var(--text)}
@@ -173,7 +175,7 @@ function newTennis(o) {
 function newPickle(o) {
   o = o || {};
   return { target: o.target || 11, winBy2: o.winBy2 !== false, bestOf: o.bestOf || 1,
-           serveMode: o.serveMode || 'off', games: [], gw: [0, 0], p: [0, 0],
+           serveMode: o.serveMode || 'off', singles: !!o.singles, games: [], gw: [0, 0], p: [0, 0],
            startSrv: 0, srv: 0, num: 2, winner: null };
 }
 function newState() {
@@ -232,7 +234,7 @@ function pickPoint(k, w) {
   const l = 1 - w;
   if (k.serveMode === 'sideout') {
     if (w !== k.srv) {
-      if (k.num === 1) k.num = 2; else { k.srv = w; k.num = 1; }
+      if (!k.singles && k.num === 1) k.num = 2; else { k.srv = w; k.num = 1; }
       return true;
     }
   } else if (k.serveMode === 'rally') {
@@ -411,7 +413,7 @@ function renderPickle() {
   const k = cur(), n = S.names;
   let main, sub, hl = k.winner !== null ? 'win' : '';
   const sideout = k.serveMode === 'sideout';
-  const call = sideout ? 'Call ' + k.p[k.srv] + ' - ' + k.p[1 - k.srv] + ' - ' + k.num : '';
+  const call = sideout ? 'Call ' + k.p[k.srv] + ' - ' + k.p[1 - k.srv] + (k.singles ? '' : ' - ' + k.num) : '';
   const gpT = [0, 1].map(i => pickCanWin(k, i)), mpT = [0, 1].map(i => pickMatchPoint(k, i));
   if (k.winner !== null) { main = n[k.winner] + ' wins the match'; sub = k.games.map(g => g[0] + '-' + g[1]).join('  '); }
   else {
@@ -431,7 +433,7 @@ function renderPickle() {
   if (k.winner === null && k.last) { main = 'GAME ' + k.last.n + ' TO ' + n[k.last.w]; hl = 'win'; }
   $('stMain').textContent = main; $('stSub').innerHTML = (k.winner === null && k.last ? `<span class="pc hot"><b>${k.last.score[k.last.w]} - ${k.last.score[1 - k.last.w]}</b></span>` : '') + (k.winner === null && sideout && (gpT[0] || gpT[1]) ? `<span class="pc hot"><b>${call}</b></span>` : '') +
       (k.winner === null && (hl || sideout) ? `<span class="pc">Game <b>${k.games.length + 1}</b></span>` : '') + `<span class="pc">Play to <b>${k.target}</b></span><span class="pc">Win by <b>${k.winBy2 ? 2 : 1}</b></span><span class="pc">Best of <b>${k.bestOf}</b></span>` +
-      (k.serveMode !== 'off' ? `<span class="pc"><b>${sideout ? 'Side-out' : 'Rally'}</b></span>` : '');
+      (k.serveMode !== 'off' ? `<span class="pc"><b>${sideout ? (k.singles ? 'Side-out singles' : 'Side-out doubles') : 'Rally'}</b></span>` : '');
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
@@ -441,7 +443,7 @@ function renderPickle() {
     const tracking = k.serveMode !== 'off' && k.winner === null;
     sv.style.visibility = tracking ? 'visible' : 'hidden';
     const isSrv = tracking && k.srv === i;
-    sv.textContent = isSrv ? (k.serveMode === 'sideout' ? '● SERVER ' + k.num : '● SERVING') : 'serve';
+    sv.textContent = isSrv ? (k.serveMode === 'sideout' && !k.singles ? '● SERVER ' + k.num : '● SERVING') : 'serve';
     sv.classList.toggle('on', isSrv);
     $('team' + i).classList.toggle('won', k.winner === i);
     $('team' + i).classList.toggle('mp', mpT[i]);
@@ -522,8 +524,9 @@ function openSettings() {
       <div class="stepper"><button id="tMinus" aria-label="Decrease">&minus;</button><input id="tVal" type="number" inputmode="numeric" min="1" max="99" value="${k.target}"><button id="tPlus" aria-label="Increase">+</button></div></div>
     <div class="row"><label>Win by</label>${segHtml('sWin', [['2', '2 points'], ['1', 'First to target']], k.winBy2 ? '2' : '1')}</div>
     <div class="row"><label>Match length</label>${segHtml('sBestP', [[1, '1 game'], [3, 'Best of 3'], [5, 'Best of 5']], k.bestOf)}</div>
-    ${isCustom ? '' : `<div class="row"><label>Serve tracking</label>${segHtml('sServe', [['off', 'Off'], ['sideout', 'Side-out'], ['rally', 'Rally']], k.serveMode)}</div>
-    <p>Side-out shows the 3-number call (server score, receiver score, server number). Tap the team that won the rally.</p>`}`;
+    ${isCustom ? '' : `<div class="row"><label>Serve tracking</label>${segHtml('sServe', [['off', 'Off'], ['rally', 'Rally'], ['sideout', 'Side-out']], k.serveMode)}</div>
+    ${k.serveMode === 'sideout' ? `<div class="row"><label>Players</label>${segHtml('sPl', [['doubles', 'Doubles'], ['singles', 'Singles']], k.singles ? 'singles' : 'doubles')}</div>
+    <p>Call: server score, receiver score${k.singles ? '' : ', then server number (1 or 2)'}. Tap the team that won the rally.</p>` : ''}`}`;
 
   openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<button class="opt ghost" id="sDone">Done</button>`);
   const bind = (id, fn) => { const el = $(id); if (!el) return;
@@ -537,6 +540,7 @@ function openSettings() {
   bind('sWin', v => act(() => { cur().winBy2 = v === '2'; }));
   bind('sBestP', v => act(() => { cur().bestOf = +v; }));
   bind('sServe', v => act(() => { cur().serveMode = v; }));
+  bind('sPl', v => act(() => { cur().singles = v === 'singles'; }));
   $('sDone').onclick = closeSheet;
 }
 
@@ -560,14 +564,19 @@ function openRules() {
       '<b>Game:</b> first to ' + k.target + (k.winBy2 ? ', win by 2.' : '.'),
       '<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'),
       '<b>Net:</b> no volleys in the 7-foot "kitchen". Serve and return must bounce first.'];
+    const sideText = k.singles
+      ? 'Only the server scores. If the server loses the rally, the opponent serves. Call: your score, their score.'
+      : 'Only the server scores. Receivers who win the rally get the serve, no point. Both partners serve first. Call: your score, their score, server 1 or 2.';
     const modes = [
-      ['sideout', 'Side-out (traditional)', 'Only the server scores. Receivers who win the rally get the serve, no point. Doubles call: your score, their score, server 1 or 2.'],
-      ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next.'],
-      ['off', 'No serve tracking', 'Points only. Good for singles.']];
+      ['off', 'Off', 'Points only. No serve indicator.'],
+      ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next. Shows which team serves.'],
+      ['sideout', 'Side-out (traditional)', sideText]];
     note = '<h3 class="mh">Serve tracking</h3>' + modes.map(m =>
       '<div class="mc' + (k.serveMode === m[0] ? ' on' : '') + '"><div class="mt"><h3>' + m[1] + '</h3>' +
       (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<button class="use" data-mode="' + m[0] + '">Use</button>') +
-      '</div><p>' + m[2] + '</p></div>').join('');
+      '</div><p>' + m[2] + '</p>' +
+      (m[0] === 'sideout' && k.serveMode === 'sideout' ? '<div class="seg pl"><button data-pl="doubles" class="' + (k.singles ? '' : 'on') + '">Doubles</button><button data-pl="singles" class="' + (k.singles ? 'on' : '') + '">Singles</button></div>' : '') +
+      '</div>').join('');
   }
   openSheet('<h2>' + title + '</h2><p class="sub2">Quick summary. Local rules may differ.</p><ul class="rules">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
@@ -575,6 +584,10 @@ function openRules() {
   $('hDone').onclick = closeSheet;
   document.querySelectorAll('#sheet .use').forEach(b => b.onclick = () => {
     act(() => { S.pickle.serveMode = b.dataset.mode; });
+    const keep = $('sheet').scrollTop; openRules(); $('sheet').scrollTop = keep;
+  });
+  document.querySelectorAll('#sheet .pl button').forEach(b => b.onclick = () => {
+    act(() => { S.pickle.singles = b.dataset.pl === 'singles'; });
     const keep = $('sheet').scrollTop; openRules(); $('sheet').scrollTop = keep;
   });
 }
