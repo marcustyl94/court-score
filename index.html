@@ -32,6 +32,13 @@ button:disabled{opacity:.35;cursor:default}
 .seg button.on{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--line) inset}
 .status{flex:1;text-align:center;min-width:0}
 .status .main{font-weight:700;font-size:clamp(14px,2.2vmin,22px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status .main.hl{display:inline-block;max-width:100%;padding:6px 22px;border-radius:999px;font-weight:800;color:#0b0f14;
+  font-size:clamp(22px,4.4vmin,36px);letter-spacing:.02em}
+.hl.deuce,.hl.win{background:var(--gold)}
+.hl.advA{background:var(--a)}
+.hl.advB{background:var(--b)}
+.hl.tb{background:#b693ff}
+.hl.sd{background:var(--danger);color:#fff}
 .status .sub{font-size:clamp(12px,1.8vmin,16px);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tools{display:flex;gap:8px}
 .tbtn{min-height:44px;min-width:44px;padding:0 14px;border-radius:12px;background:var(--panel);font-weight:600;font-size:15px;
@@ -299,17 +306,21 @@ function render() {
 }
 function renderTennis() {
   const t = S.tennis, n = S.names, won = tennisSetsWon(t);
-  let main, sub;
-  if (t.winner !== null) { main = n[t.winner] + ' wins the match'; sub = t.sets.map(s => s.g[0] + '-' + s.g[1]).join('  '); }
+  let main, sub, hl = '';
+  if (t.winner !== null) { main = n[t.winner] + ' wins the match'; hl = 'win'; sub = t.sets.map(s => s.g[0] + '-' + s.g[1]).join('  '); }
   else {
     const setNo = t.sets.length + 1;
-    if (t.tb) main = 'Tiebreak';
-    else if (t.noAd && t.p[0] >= 3 && t.p[1] >= 3) main = 'Sudden death point';
-    else if (!t.noAd && t.p[0] >= 3 && t.p[1] >= 3) main = t.p[0] === t.p[1] ? 'Deuce' : 'Advantage ' + n[t.p[0] > t.p[1] ? 0 : 1];
+    if (t.tb) { main = 'Tiebreak'; hl = 'tb'; }
+    else if (t.noAd && t.p[0] >= 3 && t.p[1] >= 3) { main = 'Sudden death point'; hl = 'sd'; }
+    else if (!t.noAd && t.p[0] >= 3 && t.p[1] >= 3) {
+      if (t.p[0] === t.p[1]) { main = 'DEUCE'; hl = 'deuce'; }
+      else { const a = t.p[0] > t.p[1] ? 0 : 1; main = 'ADVANTAGE ' + n[a]; hl = a ? 'advB' : 'advA'; }
+    }
     else main = 'Set ' + setNo;
     sub = 'Best of ' + t.bestOf + ' sets' + (t.noAd ? ' · No-Ad' : '');
   }
   $('stMain').textContent = main; $('stSub').textContent = sub;
+  $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = tennisPointLabel(t, i);
     const boxes = t.sets.map(s => `<span class="setbox ${s.g[i] > s.g[1 - i] ? 'w' : ''}">${s.g[i]}</span>`).join('');
@@ -336,6 +347,7 @@ function renderPickle() {
     if (k.serveMode === 'sideout') sub = 'Game ' + (k.games.length + 1) + ' · ' + sub;
   }
   $('stMain').textContent = main; $('stSub').textContent = sub;
+  $('stMain').className = 'main' + (k.winner !== null ? ' hl win' : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
     const hist = k.games.map(g => `<span class="setbox ${g[i] > g[1 - i] ? 'w' : ''}">${g[i]}</span>`).join('');
