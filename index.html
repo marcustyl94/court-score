@@ -104,16 +104,17 @@ button:disabled{opacity:.35;cursor:default}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
 .row .seg button{flex:1}
-.rules{margin:0 0 18px;padding-left:20px;font-size:16px;line-height:1.5}
-.rules li{margin:0 0 10px}
+.rules{margin:0 0 14px;padding-left:20px;font-size:16px;line-height:1.4}
+.rules li{margin:0 0 6px}
 .mh{margin:6px 0 10px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.mc{background:var(--panel2);border-radius:14px;padding:12px 14px;margin:0 0 10px;box-shadow:0 0 0 1px var(--line) inset}
+
+.mc{background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
 .mc.on{box-shadow:0 0 0 2px var(--a) inset}
-.mc h3{margin:0 0 6px;font-size:16px}
-.mc p{margin:0 0 6px;font-size:15px;line-height:1.45;color:var(--text)}
-.mc .hint{color:var(--muted);font-size:14px}
-.mc .use{margin-top:4px;padding:9px 16px;border-radius:10px;background:var(--bg);font-weight:700;font-size:14px;box-shadow:0 0 0 1px var(--line) inset}
-.mc .sel{display:inline-block;margin-top:4px;padding:6px 12px;border-radius:999px;background:var(--a);color:#0b0f14;font-weight:800;font-size:13px}
+.mc .mt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.mc h3{margin:0;font-size:16px}
+.mc p{margin:0;font-size:15px;line-height:1.4;color:var(--text)}
+.mc .use{padding:6px 14px;border-radius:999px;background:var(--bg);font-weight:700;font-size:13px;box-shadow:0 0 0 1px var(--line) inset}
+.mc .sel{display:inline-block;padding:5px 12px;border-radius:999px;background:var(--a);color:#0b0f14;font-weight:800;font-size:12px}
 #hDone{position:sticky;bottom:-22px;background:var(--panel);padding-top:16px;padding-bottom:16px;box-shadow:0 -14px 14px -6px var(--panel),0 0 0 1px var(--line) inset}
 .rules b{color:var(--text)}
 .sheet .sub2{color:var(--muted);font-size:14px;margin:0 0 14px}
@@ -542,38 +543,33 @@ function openSettings() {
 function openRules() {
   let title, items, note;
   if (S.sport === 'tennis') {
-    const t = S.tennis, setsToWin = Math.ceil(t.bestOf / 2);
+    const t = S.tennis;
     title = 'Tennis rules';
     items = [
-      '<b>Points:</b> 0, 15, 30, 40, then game.',
-      t.noAd ? '<b>Deuce (40-40):</b> No-Ad is on, so the next point wins the game.'
-             : '<b>Deuce (40-40):</b> win by two points. The first point after deuce is Advantage.',
-      '<b>Sets:</b> first to 6 games wins a set, by 2 games. At 6-6 play a tiebreak: first to 7 points, win by 2.',
-      '<b>Match:</b> win ' + (t.bestOf === 1 ? '1 set' : setsToWin + ' of ' + t.bestOf + ' sets') + '.',
-      '<b>Serve:</b> changes after every game. In a tiebreak it changes after the first point, then every 2 points.'];
-    note = 'Tap the serve tag on a team to choose who serves first.';
+      '<b>Points:</b> 0, 15, 30, 40, game.',
+      t.noAd ? '<b>Deuce (40-40):</b> next point wins the game (No-Ad).'
+             : '<b>Deuce (40-40):</b> win by two points.',
+      '<b>Set:</b> first to 6 games, win by 2. At 6-6, tiebreak to 7.',
+      '<b>Match:</b> ' + (t.bestOf === 1 ? 'win 1 set.' : 'win ' + Math.ceil(t.bestOf / 2) + ' of ' + t.bestOf + ' sets.'),
+      '<b>Serve:</b> changes every game.'];
+    note = 'Tap the serve tag to choose who serves first.';
   } else {
     const k = S.pickle;
     title = 'Pickleball rules';
     items = [
-      '<b>Winning a game:</b> first to ' + k.target + (k.winBy2 ? ', and you must win by 2.' : '.'),
+      '<b>Game:</b> first to ' + k.target + (k.winBy2 ? ', win by 2.' : '.'),
       '<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'),
-      '<b>At the net:</b> no volleys from inside the 7-foot "kitchen" zone. After the serve, the ball must bounce once on each side before volleys are allowed.'];
+      '<b>Net:</b> no volleys in the 7-foot "kitchen". Serve and return must bounce first.'];
     const modes = [
-      ['sideout', 'Side-out scoring (traditional)',
-        'Only the serving team can score. If the receivers win the rally, they win the serve (a "side out") but no point. In doubles both partners serve before a side out, and the game starts at 0-0-2. The call is server score, receiver score, then server number (1 or 2).',
-        'In the app: tap the team that won the rally. Doubles only.'],
-      ['rally', 'Rally scoring',
-        'Every rally scores a point for the team that wins it, whoever served. The winner serves next. Games are often shorter, so check the target score.',
-        'In the app: tap the team that won the point.'],
-      ['off', 'No serve tracking',
-        'Just keep score. The app does not follow who is serving. Good for singles or when you track the serve yourselves.',
-        'In the app: tap the team that won the point.']];
-    note = '<h3 class="mh">Choose how to track serving</h3>' + modes.map(m =>
-      '<div class="mc' + (k.serveMode === m[0] ? ' on' : '') + '"><h3>' + m[1] + '</h3><p>' + m[2] + '</p><p class="hint">' + m[3] + '</p>' +
-      (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<button class="use" data-mode="' + m[0] + '">Use this</button>') + '</div>').join('');
+      ['sideout', 'Side-out (traditional)', 'Only the server scores. Receivers who win the rally get the serve, no point. Doubles call: your score, their score, server 1 or 2.'],
+      ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next.'],
+      ['off', 'No serve tracking', 'Points only. Good for singles.']];
+    note = '<h3 class="mh">Serve tracking</h3>' + modes.map(m =>
+      '<div class="mc' + (k.serveMode === m[0] ? ' on' : '') + '"><div class="mt"><h3>' + m[1] + '</h3>' +
+      (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<button class="use" data-mode="' + m[0] + '">Use</button>') +
+      '</div><p>' + m[2] + '</p></div>').join('');
   }
-  openSheet('<h2>' + title + '</h2><p class="sub2">A quick summary. Local rules may differ.</p><ul class="rules">' +
+  openSheet('<h2>' + title + '</h2><p class="sub2">Quick summary. Local rules may differ.</p><ul class="rules">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
     '<button class="opt ghost" id="hDone">Got it</button>');
   $('hDone').onclick = closeSheet;
