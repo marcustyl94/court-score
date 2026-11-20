@@ -76,7 +76,7 @@ button:disabled{opacity:.35;cursor:default}
   font-size:min(46cqw,40cqh);font-variant-numeric:tabular-nums;letter-spacing:-.02em;min-height:0}
 .score.pop{animation:pop .22s ease-out}
 @keyframes pop{0%{transform:scale(.88)}100%{transform:scale(1)}}
-.chips{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.chips{min-height:calc(clamp(14px,4.4cqh,22px) * 1.25 + 12px);display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
 .chip{background:var(--panel2);border-radius:10px;padding:6px 12px;font-size:clamp(12px,3.6cqh,18px);color:var(--muted);font-weight:600}
 .chip b{color:var(--text);font-size:1.25em;margin-right:4px}
 .setbox{min-width:2.2em;text-align:center;padding:6px 8px;border-radius:10px;background:var(--panel2);font-weight:700;font-size:clamp(14px,4.4cqh,22px)}
@@ -395,7 +395,7 @@ function renderPickle() {
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
     const hist = k.games.map(g => `<span class="setbox ${g[i] > g[1 - i] ? 'w' : ''}">${g[i]}</span>`).join('');
-    $('chips' + i).innerHTML = `<span class="chip"><b>${k.gw[i]}</b>games</span>${hist}`;
+    $('chips' + i).innerHTML = (k.bestOf > 1 ? `<span class="chip"><b>${k.gw[i]}</b>games</span>` : '') + hist;
     const sv = $('serve' + i);
     const tracking = k.serveMode !== 'off' && k.winner === null;
     sv.style.visibility = tracking ? 'visible' : 'hidden';
