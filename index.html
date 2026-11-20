@@ -38,6 +38,11 @@ button:disabled{opacity:.35;cursor:default}
 .hl.advA{background:var(--a)}
 .hl.advB{background:var(--b)}
 .hl.tb{background:#b693ff}
+.hl.gp{background:var(--gold)}
+.hl.mp{background:var(--danger);color:#fff}
+.team.gp{box-shadow:0 0 0 4px var(--gold) inset}
+.team.mp{box-shadow:0 0 0 5px var(--danger) inset;animation:mpPulse .9s ease-in-out infinite alternate}
+@keyframes mpPulse{from{box-shadow:0 0 0 3px var(--danger) inset}to{box-shadow:0 0 0 9px var(--danger) inset}}
 .hl.sd{background:var(--danger);color:#fff}
 .status .sub{font-size:clamp(12px,1.8vmin,16px);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tools{display:flex;gap:8px}
@@ -219,6 +224,15 @@ function pickPoint(k, w) {
   }
   return true;
 }
+function pickCanWin(k, i) {
+  if (k.winner !== null) return false;
+  if (k.serveMode === 'sideout' && k.srv !== i) return false;
+  const np = k.p[i] + 1;
+  return np >= k.target && (!k.winBy2 || np - k.p[1 - i] >= 2);
+}
+function pickMatchPoint(k, i) {
+  return pickCanWin(k, i) && k.gw[i] + 1 >= Math.ceil(k.bestOf / 2);
+}
 /*ENDLOGIC*/
 
 /* ---------- app state ---------- */
@@ -329,6 +343,7 @@ function renderTennis() {
     const sv = $('serve' + i);
     sv.textContent = t.server === i && t.winner === null ? '● SERVING' : 'serve';
     sv.classList.toggle('on', t.server === i && t.winner === null);
+    $('team' + i).classList.remove('gp', 'mp');
     $('team' + i).classList.toggle('won', t.winner === i);
     $('add' + i).disabled = t.winner !== null;
     $('add' + i).textContent = '+ POINT';
@@ -337,17 +352,27 @@ function renderTennis() {
 }
 function renderPickle() {
   const k = cur(), n = S.names;
-  let main, sub;
+  let main, sub, hl = k.winner !== null ? 'win' : '';
+  const sideout = k.serveMode === 'sideout';
+  const call = sideout ? 'Call ' + k.p[k.srv] + ' - ' + k.p[1 - k.srv] + ' - ' + k.num : '';
+  const gpT = [0, 1].map(i => pickCanWin(k, i)), mpT = [0, 1].map(i => pickMatchPoint(k, i));
   if (k.winner !== null) { main = n[k.winner] + ' wins the match'; sub = k.games.map(g => g[0] + '-' + g[1]).join('  '); }
   else {
-    main = 'Game ' + (k.games.length + 1);
-    if (k.serveMode === 'sideout') main = 'Call ' + k.p[k.srv] + ' - ' + k.p[1 - k.srv] + ' - ' + k.num;
-    sub = 'To ' + k.target + (k.winBy2 ? ', win by 2' : '') + ' · Best of ' + k.bestOf +
-          (k.serveMode === 'sideout' ? ' · Side-out' : k.serveMode === 'rally' ? ' · Rally' : '');
-    if (k.serveMode === 'sideout') sub = 'Game ' + (k.games.length + 1) + ' · ' + sub;
+    main = sideout ? call : 'Game ' + (k.games.length + 1);
+    sub = 'To ' + k.target + (k.winBy2 ? ', win by 2' : '') + ' \u00b7 Best of ' + k.bestOf +
+          (sideout ? ' \u00b7 Side-out' : k.serveMode === 'rally' ? ' \u00b7 Rally' : '');
+    if (sideout) sub = 'Game ' + (k.games.length + 1) + ' \u00b7 ' + sub;
+    const anyMp = mpT[0] || mpT[1], anyGp = gpT[0] || gpT[1];
+    if (anyMp || anyGp) {
+      const who = anyMp ? mpT : gpT;
+      const label = anyMp ? 'MATCH POINT' : 'GAME POINT';
+      main = who[0] && who[1] ? label : label + ' ' + n[who[0] ? 0 : 1];
+      hl = anyMp ? 'mp' : 'gp';
+      sub = (sideout ? call + ' \u00b7 ' : '') + sub;
+    }
   }
   $('stMain').textContent = main; $('stSub').textContent = sub;
-  $('stMain').className = 'main' + (k.winner !== null ? ' hl win' : '');
+  $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
     const hist = k.games.map(g => `<span class="setbox ${g[i] > g[1 - i] ? 'w' : ''}">${g[i]}</span>`).join('');
@@ -359,6 +384,8 @@ function renderPickle() {
     sv.textContent = isSrv ? (k.serveMode === 'sideout' ? '● SERVER ' + k.num : '● SERVING') : 'serve';
     sv.classList.toggle('on', isSrv);
     $('team' + i).classList.toggle('won', k.winner === i);
+    $('team' + i).classList.toggle('mp', mpT[i]);
+    $('team' + i).classList.toggle('gp', gpT[i] && !mpT[i]);
     const b = $('add' + i);
     b.disabled = k.winner !== null;
     if (k.serveMode === 'sideout' && k.winner === null && k.srv !== i) { b.textContent = 'WON RALLY (SIDE OUT)'; b.classList.add('alt'); }
