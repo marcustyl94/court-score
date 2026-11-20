@@ -449,6 +449,8 @@ function toast(msg) {
 
 function resetStep1() {
   const over = cur().winner !== null;
+  // a finished match has nothing left to choose: go straight to the confirmation
+  if (over) { resetStep2('match'); return; }
   // best of 1 (pickleball, custom): the game in play is the whole match, so there is only one kind of reset
   if (!over && S.sport !== 'tennis' && cur().bestOf === 1) { resetStep2('match', true); return; }
   openSheet(`
