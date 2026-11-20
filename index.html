@@ -106,6 +106,14 @@ button:disabled{opacity:.35;cursor:default}
 .row .seg button{flex:1}
 .rules{margin:0 0 18px;padding-left:20px;font-size:16px;line-height:1.5}
 .rules li{margin:0 0 10px}
+.mh{margin:6px 0 10px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.mc{background:var(--panel2);border-radius:14px;padding:12px 14px;margin:0 0 10px;box-shadow:0 0 0 1px var(--line) inset}
+.mc.on{box-shadow:0 0 0 2px var(--a) inset}
+.mc h3{margin:0 0 6px;font-size:16px}
+.mc p{margin:0 0 6px;font-size:15px;line-height:1.45;color:var(--text)}
+.mc .hint{color:var(--muted);font-size:14px}
+.mc .use{margin-top:4px;padding:9px 16px;border-radius:10px;background:var(--bg);font-weight:700;font-size:14px;box-shadow:0 0 0 1px var(--line) inset}
+.mc .sel{display:inline-block;margin-top:4px;padding:6px 12px;border-radius:999px;background:var(--a);color:#0b0f14;font-weight:800;font-size:13px}
 #hDone{position:sticky;bottom:-22px;background:var(--panel);padding-top:16px;padding-bottom:16px;box-shadow:0 -14px 14px -6px var(--panel),0 0 0 1px var(--line) inset}
 .rules b{color:var(--text)}
 .sheet .sub2{color:var(--muted);font-size:14px;margin:0 0 14px}
@@ -547,22 +555,32 @@ function openRules() {
   } else {
     const k = S.pickle;
     title = 'Pickleball rules';
-    items = k.serveMode === 'rally' ? [
-      '<b>Rally scoring:</b> every rally scores a point for the team that wins it, whoever served.'
-    ] : [
-      '<b>Scoring:</b> only the serving team can score. If the receivers win the rally, they win the serve (a "side out") but no point.',
-      '<b>Doubles serving:</b> both partners serve before a side out. At the start of a game only one partner serves, so the first call is 0-0-2.',
-      '<b>Calling the score:</b> server score, receiver score, then server number (1 or 2). Example: 4-3-2. Singles uses two numbers.'];
-    items.push('<b>Winning a game:</b> first to ' + k.target + (k.winBy2 ? ', and you must win by 2.' : '.'));
-    items.push('<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'));
-    items.push('<b>At the net:</b> no volleys from inside the 7-foot "kitchen" zone. After the serve, the ball must bounce once on each side before volleys are allowed.');
-    note = k.serveMode === 'off' ? 'Turn on Serve tracking in Settings to follow the serve and the call.'
-         : k.serveMode === 'sideout' ? 'Side-out mode: tap the team that won the rally.' : '';
+    items = [
+      '<b>Winning a game:</b> first to ' + k.target + (k.winBy2 ? ', and you must win by 2.' : '.'),
+      '<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'),
+      '<b>At the net:</b> no volleys from inside the 7-foot "kitchen" zone. After the serve, the ball must bounce once on each side before volleys are allowed.'];
+    const modes = [
+      ['sideout', 'Side-out scoring (traditional)',
+        'Only the serving team can score. If the receivers win the rally, they win the serve (a "side out") but no point. In doubles both partners serve before a side out, and the game starts at 0-0-2. The call is server score, receiver score, then server number (1 or 2).',
+        'In the app: tap the team that won the rally. Doubles only.'],
+      ['rally', 'Rally scoring',
+        'Every rally scores a point for the team that wins it, whoever served. The winner serves next. Games are often shorter, so check the target score.',
+        'In the app: tap the team that won the point.'],
+      ['off', 'No serve tracking',
+        'Just keep score. The app does not follow who is serving. Good for singles or when you track the serve yourselves.',
+        'In the app: tap the team that won the point.']];
+    note = '<h3 class="mh">Choose how to track serving</h3>' + modes.map(m =>
+      '<div class="mc' + (k.serveMode === m[0] ? ' on' : '') + '"><h3>' + m[1] + '</h3><p>' + m[2] + '</p><p class="hint">' + m[3] + '</p>' +
+      (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<button class="use" data-mode="' + m[0] + '">Use this</button>') + '</div>').join('');
   }
   openSheet('<h2>' + title + '</h2><p class="sub2">A quick summary. Local rules may differ.</p><ul class="rules">' +
-    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? '<p class="sub2">' + note + '</p>' : '') +
+    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
     '<button class="opt ghost" id="hDone">Got it</button>');
   $('hDone').onclick = closeSheet;
+  document.querySelectorAll('#sheet .use').forEach(b => b.onclick = () => {
+    act(() => { S.pickle.serveMode = b.dataset.mode; });
+    const keep = $('sheet').scrollTop; openRules(); $('sheet').scrollTop = keep;
+  });
 }
 $('help').onclick = openRules;
 
