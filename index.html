@@ -378,13 +378,14 @@ function toast(msg) {
 }
 
 function resetStep1() {
+  const over = cur().winner !== null;
   openSheet(`
-    <h2>Reset scores</h2>
-    <p>Choose what to reset. You will be asked to confirm on the next step.</p>
-    <button class="opt" id="rGame">Reset current ${S.sport === 'tennis' ? 'game' : 'game'} points<small>Clears the points in play. Games and sets stay.</small></button>
+    <h2>${over ? 'Match finished' : 'Reset scores'}</h2>
+    <p>${over ? 'This match is over, so there are no game points left to reset. Start a new match to play again.' : 'Choose what to reset. You will be asked to confirm on the next step.'}</p>
+    ${over ? '' : '<button class="opt" id="rGame">Reset current game points<small>Clears the points in play. Games and sets stay.</small></button>'}
     <button class="opt danger" id="rMatch">Start a new match<small>Clears all points, games and sets. Names and settings stay.</small></button>
     <button class="opt ghost" id="rCancel">Cancel</button>`);
-  $('rGame').onclick = () => resetStep2('game');
+  if ($('rGame')) $('rGame').onclick = () => resetStep2('game');
   $('rMatch').onclick = () => resetStep2('match');
   $('rCancel').onclick = closeSheet;
 }
