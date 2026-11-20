@@ -286,6 +286,8 @@ function buildBoard() {
       S.names[i] = e.target.value.trim() || DEFAULT_NAMES[i]; save(); render();
     });
     $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+    const selectAll = e => { const el = e.target; el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
+    $('name' + i).addEventListener('focus', selectAll);
     $('serve' + i).addEventListener('click', () => setServer(i));
     $('add' + i).addEventListener('click', () => addPoint(i));
   });
