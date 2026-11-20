@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Court Score</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Court Score">
+<meta name="theme-color" content="#0b0f14">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#0b0f14; --panel:#131a22; --panel2:#1b2430; --line:#263241;
+  --text:#f2f6fa; --muted:#8fa0b3; --a:#3aa0ff; --b:#ff8a3d; --gold:#ffd24a; --danger:#ff4d5e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
+  overscroll-behavior:none;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#app{height:100dvh;display:grid;grid-template-rows:auto 1fr;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:disabled{opacity:.35;cursor:default}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:10px;padding:10px 12px;flex-wrap:nowrap}
+.seg{display:flex;background:var(--panel);border-radius:12px;padding:3px;gap:2px}
+.seg button{padding:9px 14px;border-radius:10px;font-weight:600;font-size:15px;color:var(--muted);min-height:40px}
+.seg button.on{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--line) inset}
+.status{flex:1;text-align:center;min-width:0}
+.status .main{font-weight:700;font-size:clamp(14px,2.2vmin,22px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status .sub{font-size:clamp(12px,1.8vmin,16px);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tools{display:flex;gap:8px}
+.tbtn{min-height:44px;min-width:44px;padding:0 14px;border-radius:12px;background:var(--panel);font-weight:600;font-size:15px;
+  display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 1px var(--line) inset}
+.tbtn:active:not(:disabled){background:var(--panel2)}
+.tbtn.reset{color:#ffb3ba}
+
+/* board */
+.board{display:grid;gap:10px;padding:0 12px 12px;min-height:0}
+@media (orientation:portrait){.board{grid-template-rows:1fr 1fr}}
+@media (orientation:landscape){.board{grid-template-columns:1fr 1fr}}
+
+.team{--c:var(--a);background:var(--panel);border-radius:22px;display:grid;grid-template-rows:auto 1fr auto auto;
+  padding:clamp(10px,2cqmin,22px);gap:clamp(4px,1cqh,12px);min-height:0;container-type:size;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent) inset;position:relative;overflow:hidden}
+.team.b{--c:var(--b)}
+.team.won{box-shadow:0 0 0 4px var(--gold) inset}
+.top{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.name{background:transparent;border:0;color:var(--c);font-weight:800;font-size:clamp(20px,7cqh,40px);
+  width:100%;min-width:0;outline:none;padding:4px 0;-webkit-user-select:text;user-select:text;text-overflow:ellipsis}
+.name:focus{border-bottom:2px solid var(--c)}
+.serve{flex:none;font-size:clamp(11px,3.4cqh,16px);font-weight:700;letter-spacing:.06em;color:var(--muted);
+  padding:6px 10px;border-radius:999px;background:var(--panel2);white-space:nowrap}
+.serve.on{background:var(--c);color:#0b0f14}
+.score{display:flex;align-items:center;justify-content:center;font-weight:800;line-height:1;
+  font-size:min(46cqw,40cqh);font-variant-numeric:tabular-nums;letter-spacing:-.02em;min-height:0}
+.score.pop{animation:pop .22s ease-out}
+@keyframes pop{0%{transform:scale(.88)}100%{transform:scale(1)}}
+.chips{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.chip{background:var(--panel2);border-radius:10px;padding:6px 12px;font-size:clamp(12px,3.6cqh,18px);color:var(--muted);font-weight:600}
+.chip b{color:var(--text);font-size:1.25em;margin-right:4px}
+.setbox{min-width:2.2em;text-align:center;padding:6px 8px;border-radius:10px;background:var(--panel2);font-weight:700;font-size:clamp(14px,4.4cqh,22px)}
+.setbox.w{color:var(--c)}
+.setbox.cur{outline:2px solid var(--c)}
+.add{height:clamp(68px,24cqh,150px);border-radius:18px;background:var(--c);color:#0b0f14;font-weight:800;
+  font-size:clamp(20px,8cqh,44px);letter-spacing:.02em}
+.add:active:not(:disabled){filter:brightness(.85);transform:scale(.985)}
+.add.alt{background:var(--panel2);color:var(--c);box-shadow:0 0 0 2px var(--c) inset}
+.badge{position:absolute;right:14px;top:50%;transform:translateY(-50%) rotate(8deg);background:var(--gold);color:#1a1300;
+  font-weight:900;letter-spacing:.08em;padding:8px 14px;border-radius:10px;font-size:clamp(14px,5cqh,26px);display:none}
+.team.won .badge{display:block}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
+.scrim.show{display:flex}
+.sheet{background:var(--panel);border-radius:22px;padding:22px;width:min(460px,100%);box-shadow:0 0 0 1px var(--line) inset;max-height:92dvh;overflow:auto}
+.sheet h2{margin:0 0 6px;font-size:22px}
+.sheet p{margin:0 0 16px;color:var(--muted);font-size:15px;line-height:1.4}
+.opt{display:block;width:100%;text-align:left;padding:16px;border-radius:14px;background:var(--panel2);margin-bottom:10px;font-weight:700;font-size:17px}
+.opt small{display:block;color:var(--muted);font-weight:500;margin-top:3px;font-size:14px}
+.opt.danger{color:#ffb3ba}
+.opt.ghost{background:transparent;box-shadow:0 0 0 1px var(--line) inset;text-align:center}
+.row{margin:14px 0}
+.row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.row .seg{width:100%}
+.row .seg button{flex:1}
+.stepper{display:flex;gap:8px;margin-top:10px}
+.stepper button{width:64px;height:52px;border-radius:12px;background:var(--panel2);font-size:26px;font-weight:700}
+.stepper input{flex:1;min-width:0;height:52px;border-radius:12px;border:0;background:var(--bg);color:var(--text);text-align:center;
+  font-weight:700;font-size:24px;font-family:inherit;-webkit-user-select:text;user-select:text;box-shadow:0 0 0 1px var(--line) inset}
+.hold{position:relative;width:100%;height:68px;border-radius:16px;background:#3a1c22;overflow:hidden;font-weight:800;font-size:18px;
+  color:#ffd0d5;margin-bottom:10px;-webkit-touch-callout:none;touch-action:none}
+.hold .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--danger)}
+.hold.holding .fill{width:100%;transition:width 1.2s linear}
+.hold .lbl{position:relative}
+.hold.holding .lbl{color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(40px);
+  background:var(--panel2);padding:10px 16px;border-radius:12px;opacity:0;transition:.2s;z-index:20;font-weight:600;box-shadow:0 0 0 1px var(--line) inset;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:520px) and (orientation:portrait){
+  .bar{flex-wrap:wrap}
+  .status{order:3;flex-basis:100%}
+  .tools{margin-left:auto}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <div class="seg" id="sportSeg">
+      <button data-sport="tennis">Tennis</button>
+      <button data-sport="pickle">Pickleball</button>
+      <button data-sport="custom">Custom</button>
+    </div>
+    <div class="status"><div class="main" id="stMain"></div><div class="sub" id="stSub"></div></div>
+    <div class="tools">
+      <button class="tbtn" id="undo" aria-label="Undo last point">&#8630; Undo</button>
+      <button class="tbtn" id="settings" aria-label="Settings">&#9881;</button>
+      <button class="tbtn reset" id="reset">Reset</button>
+    </div>
+  </header>
+  <main class="board" id="board"></main>
+</div>
+<div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/*LOGIC*/
+const DEFAULT_NAMES = ['Team A', 'Team B'];
+
+function newTennis(o) {
+  o = o || {};
+  return { bestOf: o.bestOf || 3, noAd: !!o.noAd, sets: [], g: [0, 0], p: [0, 0],
+           tb: false, tbStart: 0, server: 0, winner: null };
+}
+function newPickle(o) {
+  o = o || {};
+  return { target: o.target || 11, winBy2: o.winBy2 !== false, bestOf: o.bestOf || 1,
+           serveMode: o.serveMode || 'off', games: [], gw: [0, 0], p: [0, 0],
+           startSrv: 0, srv: 0, num: 2, winner: null };
+}
+function newState() {
+  return { sport: 'tennis', names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
+}
+
+function tennisSetsWon(t) {
+  const w = [0, 0];
+  t.sets.forEach(s => { w[s.g[0] > s.g[1] ? 0 : 1]++; });
+  return w;
+}
+function tennisWinSet(t, w, viaTb) {
+  const l = 1 - w;
+  let entry;
+  if (viaTb) {
+    const g = [0, 0]; g[w] = 7; g[l] = 6;
+    entry = { g: g, tb: [t.p[0], t.p[1]] };
+    t.server = 1 - t.tbStart;
+  } else {
+    entry = { g: t.g.slice(), tb: null };
+  }
+  t.sets.push(entry);
+  t.g = [0, 0]; t.p = [0, 0]; t.tb = false;
+  const won = tennisSetsWon(t);
+  if (won[w] >= Math.ceil(t.bestOf / 2)) t.winner = w;
+}
+function tennisPoint(t, w) {
+  if (t.winner !== null) return false;
+  const l = 1 - w;
+  t.p[w]++;
+  if (t.tb) {
+    if (t.p[w] >= 7 && t.p[w] - t.p[l] >= 2) { tennisWinSet(t, w, true); return true; }
+    if ((t.p[0] + t.p[1]) % 2 === 1) t.server = 1 - t.server;
+    return true;
+  }
+  const gameWon = t.noAd ? t.p[w] >= 4 : (t.p[w] >= 4 && t.p[w] - t.p[l] >= 2);
+  if (gameWon) {
+    t.g[w]++; t.p = [0, 0]; t.server = 1 - t.server;
+    if (t.g[w] >= 6 && t.g[w] - t.g[l] >= 2) tennisWinSet(t, w, false);
+    else if (t.g[0] === 6 && t.g[1] === 6) { t.tb = true; t.tbStart = t.server; }
+  }
+  return true;
+}
+function tennisPointLabel(t, i) {
+  if (t.tb) return String(t.p[i]);
+  const a = t.p[i], b = t.p[1 - i];
+  if (!t.noAd && a >= 3 && b >= 3) { if (a === b) return '40'; return a > b ? 'AD' : '40'; }
+  return ['0', '15', '30', '40'][Math.min(a, 3)];
+}
+
+function pickPoint(k, w) {
+  if (k.winner !== null) return false;
+  const l = 1 - w;
+  if (k.serveMode === 'sideout') {
+    if (w !== k.srv) {
+      if (k.num === 1) k.num = 2; else { k.srv = w; k.num = 1; }
+      return true;
+    }
+  } else if (k.serveMode === 'rally') {
+    k.srv = w;
+  }
+  k.p[w]++;
+  if (k.p[w] >= k.target && (!k.winBy2 || k.p[w] - k.p[l] >= 2)) {
+    k.games.push([k.p[0], k.p[1]]);
+    k.gw[w]++; k.p = [0, 0];
+    if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;
+    else { k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; }
+  }
+  return true;
+}
+/*ENDLOGIC*/
+
+/* ---------- app state ---------- */
+const KEY = 'courtscore.v1';
+let S = newState();
+let history = [];
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d && d.state && d.state.tennis && d.state.pickle && Array.isArray(d.state.names)) {
+      S = fixState(d.state); history = Array.isArray(d.history) ? d.history : [];
+    }
+  } catch (e) {}
+}
+function fixState(st) { if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
+}
+function snap() {
+  history.push(JSON.stringify(S));
+  if (history.length > 150) history.shift();
+}
+function act(fn) {
+  snap();
+  const changed = fn();
+  if (changed === false) { history.pop(); return false; }
+  save(); render(); return true;
+}
+const cur = () => S[S.sport];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------- build board ---------- */
+function buildBoard() {
+  $('board').innerHTML = [0, 1].map(i => `
+    <section class="team ${i ? 'b' : 'a'}" id="team${i}">
+      <div class="top">
+        <input class="name" id="name${i}" maxlength="16" enterkeyhint="done" autocomplete="off" aria-label="Team ${i + 1} name">
+        <button class="serve" id="serve${i}"></button>
+      </div>
+      <div class="score" id="score${i}">0</div>
+      <div class="chips" id="chips${i}"></div>
+      <button class="add" id="add${i}">+ POINT</button>
+      <div class="badge">WINNER</div>
+    </section>`).join('');
+  [0, 1].forEach(i => {
+    $('name' + i).addEventListener('change', e => {
+      S.names[i] = e.target.value.trim() || DEFAULT_NAMES[i]; save(); render();
+    });
+    $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+    $('serve' + i).addEventListener('click', () => setServer(i));
+    $('add' + i).addEventListener('click', () => addPoint(i));
+  });
+}
+
+let lastTap = [0, 0];
+function addPoint(i) {
+  const now = Date.now();
+  if (now - lastTap[i] < 250) return;        // ignore accidental double taps
+  lastTap[i] = now;
+  const ok = act(() => S.sport === 'tennis' ? tennisPoint(S.tennis, i) : pickPoint(cur(), i));
+  if (ok) { const el = $('score' + i); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+}
+function setServer(i) {
+  const k = cur();
+  if (k.winner !== null) return;
+  if (S.sport === 'tennis') {
+    if (k.tb || k.server === i) return;
+    act(() => { k.server = i; });
+  } else {
+    if (k.serveMode === 'off' || k.srv === i) return;
+    act(() => { k.srv = i; k.num = k.serveMode === 'sideout' ? 2 : k.num; if (k.p[0] + k.p[1] === 0) k.startSrv = i; });
+  }
+}
+
+/* ---------- render ---------- */
+function render() {
+  document.querySelectorAll('#sportSeg button').forEach(b => b.classList.toggle('on', b.dataset.sport === S.sport));
+  $('undo').disabled = history.length === 0;
+  [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
+  if (S.sport === 'tennis') renderTennis(); else renderPickle();
+}
+function renderTennis() {
+  const t = S.tennis, n = S.names, won = tennisSetsWon(t);
+  let main, sub;
+  if (t.winner !== null) { main = n[t.winner] + ' wins the match'; sub = t.sets.map(s => s.g[0] + '-' + s.g[1]).join('  '); }
+  else {
+    const setNo = t.sets.length + 1;
+    if (t.tb) main = 'Tiebreak';
+    else if (t.noAd && t.p[0] >= 3 && t.p[1] >= 3) main = 'Sudden death point';
+    else if (!t.noAd && t.p[0] >= 3 && t.p[1] >= 3) main = t.p[0] === t.p[1] ? 'Deuce' : 'Advantage ' + n[t.p[0] > t.p[1] ? 0 : 1];
+    else main = 'Set ' + setNo;
+    sub = 'Best of ' + t.bestOf + ' sets' + (t.noAd ? ' · No-Ad' : '');
+  }
+  $('stMain').textContent = main; $('stSub').textContent = sub;
+  [0, 1].forEach(i => {
+    $('score' + i).textContent = tennisPointLabel(t, i);
+    const boxes = t.sets.map(s => `<span class="setbox ${s.g[i] > s.g[1 - i] ? 'w' : ''}">${s.g[i]}</span>`).join('');
+    const curBox = t.winner === null ? `<span class="setbox cur">${t.g[i]}</span>` : '';
+    $('chips' + i).innerHTML = `<span class="chip"><b>${won[i]}</b>sets</span>${boxes}${curBox}`;
+    const sv = $('serve' + i);
+    sv.textContent = t.server === i && t.winner === null ? '● SERVING' : 'serve';
+    sv.classList.toggle('on', t.server === i && t.winner === null);
+    $('team' + i).classList.toggle('won', t.winner === i);
+    $('add' + i).disabled = t.winner !== null;
+    $('add' + i).textContent = '+ POINT';
+    $('add' + i).classList.remove('alt');
+  });
+}
+function renderPickle() {
+  const k = cur(), n = S.names;
+  let main, sub;
+  if (k.winner !== null) { main = n[k.winner] + ' wins the match'; sub = k.games.map(g => g[0] + '-' + g[1]).join('  '); }
+  else {
+    main = 'Game ' + (k.games.length + 1);
+    if (k.serveMode === 'sideout') main = 'Call ' + k.p[k.srv] + ' - ' + k.p[1 - k.srv] + ' - ' + k.num;
+    sub = 'To ' + k.target + (k.winBy2 ? ', win by 2' : '') + ' · Best of ' + k.bestOf +
+          (k.serveMode === 'sideout' ? ' · Side-out' : k.serveMode === 'rally' ? ' · Rally' : '');
+    if (k.serveMode === 'sideout') sub = 'Game ' + (k.games.length + 1) + ' · ' + sub;
+  }
+  $('stMain').textContent = main; $('stSub').textContent = sub;
+  [0, 1].forEach(i => {
+    $('score' + i).textContent = k.p[i];
+    const hist = k.games.map(g => `<span class="setbox ${g[i] > g[1 - i] ? 'w' : ''}">${g[i]}</span>`).join('');
+    $('chips' + i).innerHTML = `<span class="chip"><b>${k.gw[i]}</b>games</span>${hist}`;
+    const sv = $('serve' + i);
+    const tracking = k.serveMode !== 'off' && k.winner === null;
+    sv.style.visibility = tracking ? 'visible' : 'hidden';
+    const isSrv = tracking && k.srv === i;
+    sv.textContent = isSrv ? (k.serveMode === 'sideout' ? '● SERVER ' + k.num : '● SERVING') : 'serve';
+    sv.classList.toggle('on', isSrv);
+    $('team' + i).classList.toggle('won', k.winner === i);
+    const b = $('add' + i);
+    b.disabled = k.winner !== null;
+    if (k.serveMode === 'sideout' && k.winner === null && k.srv !== i) { b.textContent = 'WON RALLY (SIDE OUT)'; b.classList.add('alt'); }
+    else { b.textContent = '+ POINT'; b.classList.remove('alt'); }
+  });
+}
+
+/* ---------- sheets ---------- */
+let holdTimer = null;
+function openSheet(html) { $('sheet').innerHTML = html; $('scrim').classList.add('show'); }
+function closeSheet() { clearTimeout(holdTimer); $('scrim').classList.remove('show'); }
+$('scrim').addEventListener('click', e => { if (e.target === $('scrim')) closeSheet(); });
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+function resetStep1() {
+  openSheet(`
+    <h2>Reset scores</h2>
+    <p>Choose what to reset. You will be asked to confirm on the next step.</p>
+    <button class="opt" id="rGame">Reset current ${S.sport === 'tennis' ? 'game' : 'game'} points<small>Clears the points in play. Games and sets stay.</small></button>
+    <button class="opt danger" id="rMatch">Start a new match<small>Clears all points, games and sets. Names and settings stay.</small></button>
+    <button class="opt ghost" id="rCancel">Cancel</button>`);
+  $('rGame').onclick = () => resetStep2('game');
+  $('rMatch').onclick = () => resetStep2('match');
+  $('rCancel').onclick = closeSheet;
+}
+function resetStep2(scope) {
+  openSheet(`
+    <h2>${scope === 'match' ? 'Start a new match?' : 'Reset current game points?'}</h2>
+    <p>Press and hold the button for about one second to confirm. You can still use Undo right after.</p>
+    <button class="hold" id="hold"><span class="fill"></span><span class="lbl">Hold to confirm</span></button>
+    <button class="opt ghost" id="rBack">Cancel</button>`);
+  const h = $('hold');
+  const start = e => {
+    e.preventDefault(); h.classList.add('holding');
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => { doReset(scope); closeSheet(); toast('Reset done. Undo is available.'); }, 1200);
+  };
+  const stop = () => { h.classList.remove('holding'); clearTimeout(holdTimer); };
+  h.addEventListener('pointerdown', start);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => h.addEventListener(ev, stop));
+  h.addEventListener('contextmenu', e => e.preventDefault());
+  $('rBack').onclick = closeSheet;
+}
+function doReset(scope) {
+  act(() => {
+    if (scope === 'game') {
+      const k = cur(); k.p = [0, 0];
+      if (S.sport === 'pickle') { k.num = 2; }
+    } else if (S.sport === 'tennis') S.tennis = newTennis(S.tennis);
+    else S[S.sport] = newPickle(S[S.sport]);
+  });
+}
+
+function segHtml(id, opts, val) {
+  return `<div class="seg" id="${id}">${opts.map(o => `<button data-v="${o[0]}" class="${String(o[0]) === String(val) ? 'on' : ''}">${o[1]}</button>`).join('')}</div>`;
+}
+function openSettings() {
+  const t = S.tennis, k = cur(), isCustom = S.sport === 'custom';
+  const body = S.sport === 'tennis' ? `
+    <div class="row"><label>Match length</label>${segHtml('sBest', [[1, '1 set'], [3, 'Best of 3'], [5, 'Best of 5']], t.bestOf)}</div>
+    <div class="row"><label>Deuce</label>${segHtml('sAd', [['ad', 'Advantage'], ['noad', 'No-Ad']], t.noAd ? 'noad' : 'ad')}</div>
+    <p>Tiebreak at 6-6 in every set (first to 7, win by 2). Tap the "serve" tag on a team to set who serves.</p>` : `
+    <div class="row"><label>Play to (winning points)</label>
+      ${segHtml('sTarget', isCustom ? [[7, '7'], [11, '11'], [15, '15'], [21, '21']] : [[11, '11'], [15, '15'], [21, '21']], k.target)}
+      <div class="stepper"><button id="tMinus" aria-label="Decrease">&minus;</button><input id="tVal" type="number" inputmode="numeric" min="1" max="99" value="${k.target}"><button id="tPlus" aria-label="Increase">+</button></div></div>
+    <div class="row"><label>Win by</label>${segHtml('sWin', [['2', '2 points'], ['1', 'First to target']], k.winBy2 ? '2' : '1')}</div>
+    <div class="row"><label>Match length</label>${segHtml('sBestP', [[1, '1 game'], [3, 'Best of 3'], [5, 'Best of 5']], k.bestOf)}</div>
+    ${isCustom ? '' : `<div class="row"><label>Serve tracking</label>${segHtml('sServe', [['off', 'Off'], ['sideout', 'Side-out'], ['rally', 'Rally']], k.serveMode)}</div>
+    <p>Side-out shows the 3-number call (server score, receiver score, server number). Tap the team that won the rally.</p>`}`;
+
+  openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<button class="opt ghost" id="sDone">Done</button>`);
+  const bind = (id, fn) => { const el = $(id); if (!el) return;
+    el.querySelectorAll('button').forEach(b => b.onclick = () => { fn(b.dataset.v); openSettings(); }); };
+  bind('sBest', v => act(() => { S.tennis.bestOf = +v; }));
+  bind('sAd', v => act(() => { S.tennis.noAd = v === 'noad'; }));
+  bind('sTarget', v => act(() => { cur().target = +v; }));
+  const setT = v => { v = Math.max(1, Math.min(99, Math.round(+v) || cur().target)); act(() => { cur().target = v; }); openSettings(); };
+  if ($('tVal')) { $('tMinus').onclick = () => setT(cur().target - 1); $('tPlus').onclick = () => setT(cur().target + 1);
+    $('tVal').onchange = e => setT(e.target.value); }
+  bind('sWin', v => act(() => { cur().winBy2 = v === '2'; }));
+  bind('sBestP', v => act(() => { cur().bestOf = +v; }));
+  bind('sServe', v => act(() => { cur().serveMode = v; }));
+  $('sDone').onclick = closeSheet;
+}
+
+/* ---------- wire up ---------- */
+$('undo').onclick = () => {
+  if (!history.length) return;
+  S = fixState(JSON.parse(history.pop())); save(); render(); toast('Undone');
+};
+$('reset').onclick = resetStep1;
+$('settings').onclick = openSettings;
+document.querySelectorAll('#sportSeg button').forEach(b => b.onclick = () => {
+  if (S.sport === b.dataset.sport) return;
+  S.sport = b.dataset.sport; save(); render();
+});
+
+/* keep the screen awake while scoring */
+let wake = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+/* block pinch / double-tap zoom on iOS */
+['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+
+load(); buildBoard(); render(); keepAwake();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
