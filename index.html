@@ -104,6 +104,12 @@ button:disabled{opacity:.35;cursor:default}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
 .row .seg button{flex:1}
+.rules{margin:0 0 18px;padding-left:20px;font-size:16px;line-height:1.5}
+.rules li{margin:0 0 10px}
+#hDone{position:sticky;bottom:-22px;background:var(--panel);padding-top:16px;padding-bottom:16px;box-shadow:0 -14px 14px -6px var(--panel),0 0 0 1px var(--line) inset}
+.rules b{color:var(--text)}
+.sheet .sub2{color:var(--muted);font-size:14px;margin:0 0 14px}
+#help{font-size:20px;font-weight:800}
 .stepper{display:flex;gap:8px;margin-top:10px}
 .stepper button{width:64px;height:52px;border-radius:12px;background:var(--panel2);font-size:26px;font-weight:700}
 .stepper input{flex:1;min-width:0;height:52px;border-radius:12px;border:0;background:var(--bg);color:var(--text);text-align:center;
@@ -136,6 +142,7 @@ button:disabled{opacity:.35;cursor:default}
     <div class="status"><div class="main" id="stMain"></div><div class="sub" id="stSub"></div></div>
     <div class="tools">
       <button class="tbtn" id="undo" aria-label="Undo last point">&#8630; Undo</button>
+      <button class="tbtn" id="help" aria-label="Rules">?</button>
       <button class="tbtn" id="settings" aria-label="Settings">&#9881;</button>
       <button class="tbtn reset" id="reset">Reset</button>
     </div>
@@ -339,6 +346,7 @@ function render() {
   $('undo').disabled = history.length === 0;
   [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
   if (S.sport === 'tennis') renderTennis(); else renderPickle();
+  $('help').style.display = S.sport === 'custom' ? 'none' : '';
   fitChips();
 }
 /* drop the least important pills (from the end) until the row fits */
@@ -522,6 +530,41 @@ function openSettings() {
   bind('sServe', v => act(() => { cur().serveMode = v; }));
   $('sDone').onclick = closeSheet;
 }
+
+function openRules() {
+  let title, items, note;
+  if (S.sport === 'tennis') {
+    const t = S.tennis, setsToWin = Math.ceil(t.bestOf / 2);
+    title = 'Tennis rules';
+    items = [
+      '<b>Points:</b> 0, 15, 30, 40, then game.',
+      t.noAd ? '<b>Deuce (40-40):</b> No-Ad is on, so the next point wins the game.'
+             : '<b>Deuce (40-40):</b> win by two points. The first point after deuce is Advantage.',
+      '<b>Sets:</b> first to 6 games wins a set, by 2 games. At 6-6 play a tiebreak: first to 7 points, win by 2.',
+      '<b>Match:</b> win ' + (t.bestOf === 1 ? '1 set' : setsToWin + ' of ' + t.bestOf + ' sets') + '.',
+      '<b>Serve:</b> changes after every game. In a tiebreak it changes after the first point, then every 2 points.'];
+    note = 'Tap the serve tag on a team to choose who serves first.';
+  } else {
+    const k = S.pickle;
+    title = 'Pickleball rules';
+    items = k.serveMode === 'rally' ? [
+      '<b>Rally scoring:</b> every rally scores a point for the team that wins it, whoever served.'
+    ] : [
+      '<b>Scoring:</b> only the serving team can score. If the receivers win the rally, they win the serve (a "side out") but no point.',
+      '<b>Doubles serving:</b> both partners serve before a side out. At the start of a game only one partner serves, so the first call is 0-0-2.',
+      '<b>Calling the score:</b> server score, receiver score, then server number (1 or 2). Example: 4-3-2. Singles uses two numbers.'];
+    items.push('<b>Winning a game:</b> first to ' + k.target + (k.winBy2 ? ', and you must win by 2.' : '.'));
+    items.push('<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'));
+    items.push('<b>At the net:</b> no volleys from inside the 7-foot "kitchen" zone. After the serve, the ball must bounce once on each side before volleys are allowed.');
+    note = k.serveMode === 'off' ? 'Turn on Serve tracking in Settings to follow the serve and the call.'
+         : k.serveMode === 'sideout' ? 'Side-out mode: tap the team that won the rally.' : '';
+  }
+  openSheet('<h2>' + title + '</h2><p class="sub2">A quick summary. Local rules may differ.</p><ul class="rules">' +
+    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? '<p class="sub2">' + note + '</p>' : '') +
+    '<button class="opt ghost" id="hDone">Got it</button>');
+  $('hDone').onclick = closeSheet;
+}
+$('help').onclick = openRules;
 
 /* ---------- wire up ---------- */
 $('stSub').onclick = openSettings;
