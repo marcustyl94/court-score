@@ -222,9 +222,9 @@ function pickPoint(k, w) {
   k.p[w]++;
   if (k.p[w] >= k.target && (!k.winBy2 || k.p[w] - k.p[l] >= 2)) {
     k.games.push([k.p[0], k.p[1]]);
-    k.gw[w]++; k.p = [0, 0];
-    if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;
-    else { k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; }
+    k.gw[w]++;
+    if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;   // keep the final score on screen
+    else { k.p = [0, 0]; k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; }
   }
   return true;
 }
@@ -373,7 +373,7 @@ function renderTennis() {
     : (hl ? `<span class="pc">Set <b>${t.sets.length + 1}</b></span>` : '') + `<span class="pc">Best of <b>${t.bestOf}</b> sets</span><span class="pc"><b>${t.noAd ? 'No-Ad' : 'Ad scoring'}</b></span><span class="pc">Tiebreak <b>6-6</b></span>`;
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
-    $('score' + i).textContent = tennisPointLabel(t, i);
+    $('score' + i).textContent = t.winner !== null ? won[i] : tennisPointLabel(t, i);
     const boxes = t.sets.map(s => `<span class="setbox ${s.g[i] > s.g[1 - i] ? 'w' : ''}">${s.g[i]}</span>`).join('');
     const curBox = t.winner === null ? `<span class="setbox cur">${t.g[i]}</span>` : '';
     $('chips' + i).innerHTML = `<span class="chip"><b>${won[i]}</b>sets</span>${boxes}${curBox}`;
