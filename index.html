@@ -66,6 +66,7 @@ button:disabled{opacity:.35;cursor:default}
 
 /* board */
 .board{display:grid;gap:10px;padding:0 12px 12px;min-height:0;min-width:0}
+.board.swap > :first-child{order:2}
 @media (orientation:portrait){.board{grid-template-rows:1fr 1fr}}
 @media (orientation:landscape){.board{grid-template-columns:1fr 1fr}}
 
@@ -159,9 +160,9 @@ button:disabled{opacity:.35;cursor:default}
   background:var(--panel2);padding:10px 16px;border-radius:12px;opacity:0;transition:.2s;z-index:20;font-weight:600;box-shadow:0 0 0 1px var(--line) inset;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-@media (max-width:600px){
+@media (max-width:600px), (max-height:500px){
   .bar{gap:8px}
-  #sportSeg,#help,#settings,#reset,#players{display:none!important}
+  #sportSeg,#help,#settings,#reset,#players,#swap{display:none!important}
   .chip,#more{display:flex}
   .chip{min-width:0;padding:0 12px}
   .chip .car{font-size:12px;color:var(--muted)}
@@ -172,6 +173,16 @@ button:disabled{opacity:.35;cursor:default}
   .status{order:5!important}
   .mpop.left{left:12px}
   .mpop.right{right:12px}
+}
+@media (max-height:500px) and (orientation:landscape){
+  .status{order:2!important;flex:1;min-width:0}
+  #undo{flex:0 0 auto;order:3;padding:0 22px}
+  #more{order:4}
+}
+@media (orientation:landscape) and (min-height:501px) and (max-width:1199px){
+  .bar{flex-wrap:wrap}
+  .status{order:3;flex-basis:100%}
+  .tools{margin-left:auto}
 }
 @media (orientation:portrait){
   .bar{flex-wrap:wrap}
@@ -195,6 +206,7 @@ button:disabled{opacity:.35;cursor:default}
       <button class="tbtn" id="players" aria-label="Players">Players</button>
       <button class="tbtn" id="help" aria-label="Rules">?</button>
       <button class="tbtn" id="settings" aria-label="Settings">&#9881;</button>
+      <button class="tbtn" id="swap" aria-label="Swap sides" title="Swap sides">&#8644;</button>
       <button class="tbtn reset" id="reset">Reset</button>
       <button class="tbtn" id="more" aria-label="More" aria-haspopup="true" aria-expanded="false">&#8943;</button>
     </div>
@@ -221,7 +233,7 @@ function newPickle(o) {
            startSrv: 0, srv: 0, num: 2, winner: null };
 }
 function newState() {
-  return { sport: 'tennis', rot: null, roster: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
+  return { sport: 'tennis', swap: false, rot: null, roster: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
 }
 
 function tennisSetsWon(t) {
@@ -358,7 +370,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
+function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
 }
@@ -499,6 +511,7 @@ function setServer(i) {
 function render() {
   document.querySelectorAll('#sportSeg button').forEach(b => b.classList.toggle('on', b.dataset.sport === S.sport));
   $('undo').disabled = history.length === 0;
+  $('board').classList.toggle('swap', !!S.swap);
   [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
   if (S.sport === 'tennis') renderTennis(); else renderPickle();
   if (S.rot && S.rot.lineup) {
@@ -697,7 +710,7 @@ function openSettings() {
 }
 
 function openRules() {
-  let title, items, note;
+  let title, items, note, serving = [];
   if (S.sport === 'tennis') {
     const t = S.tennis;
     title = 'Tennis rules';
@@ -706,8 +719,12 @@ function openRules() {
       t.noAd ? '<b>Deuce (40-40):</b> next point wins the game (No-Ad).'
              : '<b>Deuce (40-40):</b> win by two points.',
       '<b>Set:</b> first to 6 games, win by 2. At 6-6, tiebreak to 7.',
-      '<b>Match:</b> ' + (t.bestOf === 1 ? 'win 1 set.' : 'win ' + Math.ceil(t.bestOf / 2) + ' of ' + t.bestOf + ' sets.'),
-      '<b>Serve:</b> changes every game.'];
+      '<b>Match:</b> ' + (t.bestOf === 1 ? 'win 1 set.' : 'win ' + Math.ceil(t.bestOf / 2) + ' of ' + t.bestOf + ' sets.')];
+    serving = [
+      '<b>Two tries.</b> Miss both and you lose the point (double fault).',
+      '<b>Diagonal.</b> Serve into the opposite service box. Start on the right, switch sides each point.',
+      '<b>Let:</b> a serve that clips the net and lands in is replayed.',
+      '<b>Turns:</b> serve changes every game. In a tiebreak, one serve first, then two each.'];
     note = 'Tap the serve tag to choose who serves first.';
   } else {
     const k = S.pickle;
@@ -716,6 +733,12 @@ function openRules() {
       '<b>Game:</b> first to ' + k.target + (k.winBy2 ? ', win by 2.' : '.'),
       '<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'),
       '<b>Net:</b> no volleys in the 7-foot "kitchen". Serve and return must bounce first.'];
+    serving = [
+      '<b>Underhand.</b> Hit the ball below your waist.',
+      '<b>Diagonal.</b> The serve must land past the kitchen line in the opposite box.',
+      '<b>One try.</b> A serve that clips the net and lands in is played.',
+      k.singles ? '<b>Side:</b> serve from the right when your score is even, the left when odd.'
+                : '<b>Side:</b> each serving turn starts on the right. Switch sides with your partner after each point you win.'];
     const sideText = k.singles
       ? 'Only the server scores. If the server loses the rally, the opponent serves. Call: your score, their score.'
       : 'Only the server scores. Receivers who win the rally get the serve, no point. Both partners serve first. Call: your score, their score, server 1 or 2.';
@@ -731,7 +754,8 @@ function openRules() {
       '</div>').join('');
   }
   openSheet('<h2>' + title + '</h2><p class="sub2">Quick summary. Local rules may differ.</p><ul class="rules">' +
-    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
+    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' +
+    (serving.length ? '<h3 class="mh">Serving</h3><ul class="rules">' + serving.map(i => '<li>' + i + '</li>').join('') + '</ul>' : '') + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
     '<button class="opt ghost" id="hDone">Got it</button>');
   $('hDone').onclick = closeSheet;
   document.querySelectorAll('#sheet .mc.pick').forEach(c => {
@@ -759,6 +783,8 @@ $('undo').onclick = () => {
 $('reset').onclick = resetStep1;
 $('settings').onclick = openSettings;
 $('players').onclick = openPlayers;
+function swapSides() { S.swap = !S.swap; save(); render(); toast('Sides swapped'); }
+$('swap').onclick = swapSides;
 const SPORT_NAMES = { tennis: 'Tennis', pickle: 'Pickleball', custom: 'Custom' };
 const pop = $('pop');
 function closePop() { pop.classList.remove('show'); $('modeChip').setAttribute('aria-expanded', 'false'); $('more').setAttribute('aria-expanded', 'false'); }
@@ -774,13 +800,14 @@ $('modeChip').onclick = () => showPop(
   'left', $('modeChip'));
 $('more').onclick = () => showPop(
   (S.sport === 'custom' ? '' : '<button role="menuitem" data-act="rules">Rules</button>') +
-  '<button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
+  '<button role="menuitem" data-act="swap">Swap sides</button><button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
   'right', $('more'));
 pop.onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   closePop();
   if (b.dataset.sport) { if (S.sport !== b.dataset.sport) { S.sport = b.dataset.sport; save(); render(); } }
   else if (b.dataset.act === 'rules') openRules();
+  else if (b.dataset.act === 'swap') swapSides();
   else if (b.dataset.act === 'players') openPlayers();
   else if (b.dataset.act === 'settings') openSettings();
   else if (b.dataset.act === 'reset') resetStep1();
