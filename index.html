@@ -315,14 +315,15 @@ function pickMatchPoint(k, i) {
 }
 
 /* ---------- player rotation: doubles, 4 to 6 players, one court ---------- */
-function newRot(names) {
-  return { players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, round: 0, lineup: null, next: null, recorded: false };
+function newRot(names, mode) {
+  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, round: 0, lineup: null, next: null, recorded: false };
 }
 const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 /* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
 function rotPick(rot) {
   const P = rot.players;
   const idx = P.map((_, i) => i).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
+  if (rot.mode === 'singles') return { teams: [[idx[0]], [idx[1]]], sit: idx.slice(2).sort((a, b) => a - b) };
   const play = idx.slice(0, 4).sort((a, b) => a - b), sit = idx.slice(4).sort((a, b) => a - b);
   const a = play[0], b = play[1], c = play[2], d = play[3];
   let best = null;
@@ -335,7 +336,7 @@ function rotPick(rot) {
 }
 function rotRecord(rot) {
   const L = rot.lineup;
-  L.teams.forEach(t => { const k = pkey(t[0], t[1]); rot.partner[k] = (rot.partner[k] || 0) + 1; });
+  L.teams.forEach(t => { if (t.length === 2) { const k = pkey(t[0], t[1]); rot.partner[k] = (rot.partner[k] || 0) + 1; } });
   L.teams[0].forEach(x => L.teams[1].forEach(y => { const k = pkey(x, y); rot.opp[k] = (rot.opp[k] || 0) + 1; }));
   L.teams.forEach(t => t.forEach(i => { rot.players[i].g++; rot.players[i].last = rot.round; }));
   rot.round++;
@@ -417,28 +418,29 @@ function addPoint(i) {
 }
 /* ---------- player rotation (app side) ---------- */
 function freshMatch() { if (S.sport === 'tennis') S.tennis = newTennis(S.tennis); else S[S.sport] = newPickle(S[S.sport]); }
-function rotApply() { const r = S.rot, p = r.players; S.names = r.lineup.teams.map(t => p[t[0]].n + ' & ' + p[t[1]].n); }
+function rotApply() { const r = S.rot, p = r.players; S.names = r.lineup.teams.map(t => t.map(i => p[i].n).join(' & ')); }
 function rotAfterPoint() {
   const r = S.rot;
   if (!r || !r.lineup || r.recorded || cur().winner === null) return false;
   rotRecord(r); r.recorded = true; r.next = rotPick(r);
   return true;
 }
-function rotStart(names) { act(() => { S.rot = newRot(names); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
+function rotStart(names, mode) { act(() => { S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
 function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
-let draftP = null, endArm = false;
+let draftP = null, draftMode = 'doubles', endArm = false;
 function openPlayers() {
   const r = S.rot;
   if (!r) { openPlayerSetup(); return; }
   endArm = false;
   const p = r.players, L = r.recorded ? r.next : r.lineup;
-  const nm = t => esc(p[t[0]].n) + ' &amp; ' + esc(p[t[1]].n);
+  const single = r.mode === 'singles';
+  const nm = t => t.map(i => esc(p[i].n)).join(' &amp; ');
   const playing = L.teams.flat();
   const rows = p.map((x, i) => `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span></div>`).join('');
   openSheet(`
     <h2>${r.recorded ? 'Match finished' : 'Players'}</h2>
-    <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. Teams change after every match.'}</p>
+    <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (single ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
     <div class="vs"><div class="v">${r.recorded ? 'Next match' : 'Now playing'}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     ${rows}
@@ -454,15 +456,19 @@ function openPlayers() {
 }
 function openPlayerSetup() {
   if (!draftP) draftP = ['', '', '', '', ''];
+  const single = draftMode === 'singles', min = single ? 3 : 4;
+  while (draftP.length < min) draftP.push('');
   const n = draftP.length;
   const sync = () => document.querySelectorAll('.pin').forEach(el => { draftP[+el.dataset.i] = el.value; });
   openSheet(`
     <h2>Rotate players</h2>
-    <p>Doubles on one court with 4 to 6 players. After each match the app picks the next four so everyone plays about the same number of matches, and partners change.</p>
-    ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="Player ${i + 1}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${n > 4 ? `<button class="px" data-rm="${i}" aria-label="Remove player ${i + 1}">&times;</button>` : ''}</div>`).join('')}
+    <div class="row" style="margin-top:0">${segHtml('pMode', [['doubles', 'Doubles'], ['singles', 'Singles']], draftMode)}</div>
+    <p>${single ? 'Singles on one court with 3 to 6 players. After each match the app picks the next two so everyone plays about the same number of matches, and opponents change.' : 'Doubles on one court with 4 to 6 players. After each match the app picks the next four so everyone plays about the same number of matches, and partners change.'}</p>
+    ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="Player ${i + 1}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${n > min ? `<button class="px" data-rm="${i}" aria-label="Remove player ${i + 1}">&times;</button>` : ''}</div>`).join('')}
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
-    <button class="opt" id="pStart">Start rotation<small>Starts a fresh match with the first four players.</small></button>
+    <button class="opt" id="pStart">Start rotation<small>Starts a fresh match with the first ${single ? 'two' : 'four'} players.</small></button>
     <button class="opt ghost" id="pBack">Cancel</button>`);
+  document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => { sync(); draftMode = b.dataset.v; openPlayerSetup(); });
   if ($('pAdd')) $('pAdd').onclick = () => { sync(); draftP.push(''); openPlayerSetup(); };
   document.querySelectorAll('.px').forEach(b => b.onclick = () => { sync(); draftP.splice(+b.dataset.rm, 1); openPlayerSetup(); });
   $('pStart').onclick = () => {
@@ -473,7 +479,7 @@ function openPlayerSetup() {
       const key = nm.toLowerCase(); seen[key] = (seen[key] || 0) + 1;
       return seen[key] > 1 ? nm + ' ' + seen[key] : nm;
     });
-    draftP = null; closeSheet(); rotStart(names); toast('Rotation started');
+    const m = draftMode; draftP = null; draftMode = 'doubles'; closeSheet(); rotStart(names, m); toast('Rotation started');
   };
   $('pBack').onclick = closeSheet;
 }
@@ -673,7 +679,7 @@ function openSettings() {
     ${k.serveMode === 'sideout' ? `<div class="row"><label>Players</label>${segHtml('sPl', [['doubles', 'Doubles'], ['singles', 'Singles']], k.singles ? 'singles' : 'doubles')}</div>
     <p>Call: server score, receiver score${k.singles ? '' : ', then server number (1 or 2)'}. Tap the team that won the rally.</p>` : ''}`}`;
 
-  openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<div class="row"><label>Player rotation</label><button class="opt" id="sRot" style="margin:0">${S.rot ? S.rot.players.length + ' players' : 'Off'}<small>Doubles with 4 to 6 players on one court. Picks fair teams for each match.</small></button></div><button class="opt ghost" id="sDone">Done</button>`);
+  openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<div class="row"><label>Player rotation</label><button class="opt" id="sRot" style="margin:0">${S.rot ? S.rot.players.length + ' players' : 'Off'}<small>Doubles (4 to 6 players) or singles (3 to 6) on one court. Picks fair matchups.</small></button></div><button class="opt ghost" id="sDone">Done</button>`);
   $('sRot').onclick = openPlayers;
   const bind = (id, fn) => { const el = $(id); if (!el) return;
     el.querySelectorAll('button').forEach(b => b.onclick = () => { fn(b.dataset.v); openSettings(); }); };
