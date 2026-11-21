@@ -54,6 +54,15 @@ button:disabled{opacity:.35;cursor:default}
   display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 1px var(--line) inset}
 .tbtn:active:not(:disabled){background:var(--panel2)}
 .tbtn.reset{color:#ffb3ba}
+.chip,#more{display:none}
+.bar{position:relative}
+.pop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
+.pop.show{display:block}
+.pop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:0 14px;min-height:46px;border-radius:10px;font-weight:600;font-size:16px}
+.pop button:active{background:var(--panel)}
+.pop button.on{color:var(--text);background:var(--panel)}
+.pop button.dng{color:#ffb3ba}
+.pop .ck{margin-left:auto}
 
 /* board */
 .board{display:grid;gap:10px;padding:0 12px 12px;min-height:0;min-width:0}
@@ -135,6 +144,20 @@ button:disabled{opacity:.35;cursor:default}
   background:var(--panel2);padding:10px 16px;border-radius:12px;opacity:0;transition:.2s;z-index:20;font-weight:600;box-shadow:0 0 0 1px var(--line) inset;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+@media (max-width:600px){
+  .bar{gap:8px}
+  #sportSeg,#help,#settings,#reset{display:none!important}
+  .chip,#more{display:flex}
+  .chip{min-width:0;padding:0 12px}
+  .chip .car{font-size:12px;color:var(--muted)}
+  .tools{display:contents}
+  #undo{flex:1;order:2}
+  #more{order:3}
+  .chip{order:1}
+  .status{order:5!important}
+  .pop.left{left:12px}
+  .pop.right{right:12px}
+}
 @media (orientation:portrait){
   .bar{flex-wrap:wrap}
   .status{order:3;flex-basis:100%}
@@ -145,6 +168,7 @@ button:disabled{opacity:.35;cursor:default}
 <body>
 <div id="app">
   <header class="bar">
+    <button class="tbtn chip" id="modeChip" aria-haspopup="true" aria-expanded="false"><span id="modeLbl">Tennis</span><span class="car">&#9662;</span></button>
     <div class="seg" id="sportSeg">
       <button data-sport="tennis">Tennis</button>
       <button data-sport="pickle">Pickleball</button>
@@ -156,7 +180,9 @@ button:disabled{opacity:.35;cursor:default}
       <button class="tbtn" id="help" aria-label="Rules">?</button>
       <button class="tbtn" id="settings" aria-label="Settings">&#9881;</button>
       <button class="tbtn reset" id="reset">Reset</button>
+      <button class="tbtn" id="more" aria-label="More" aria-haspopup="true" aria-expanded="false">&#8943;</button>
     </div>
+    <div class="pop" id="pop" role="menu"></div>
   </header>
   <main class="board" id="board"></main>
 </div>
@@ -361,6 +387,7 @@ function render() {
   $('undo').disabled = history.length === 0;
   [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
   if (S.sport === 'tennis') renderTennis(); else renderPickle();
+  $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
   fitChips();
 }
@@ -605,6 +632,32 @@ $('undo').onclick = () => {
 };
 $('reset').onclick = resetStep1;
 $('settings').onclick = openSettings;
+const SPORT_NAMES = { tennis: 'Tennis', pickle: 'Pickleball', custom: 'Custom' };
+const pop = $('pop');
+function closePop() { pop.classList.remove('show'); $('modeChip').setAttribute('aria-expanded', 'false'); $('more').setAttribute('aria-expanded', 'false'); }
+function showPop(html, side, btn) {
+  const was = pop.classList.contains('show') && pop.dataset.for === btn.id;
+  closePop();
+  if (was) return;
+  pop.innerHTML = html; pop.dataset.for = btn.id;
+  pop.className = 'pop show ' + side; btn.setAttribute('aria-expanded', 'true');
+}
+$('modeChip').onclick = () => showPop(
+  Object.keys(SPORT_NAMES).map(k => '<button role="menuitem" data-sport="' + k + '"' + (S.sport === k ? ' class="on"' : '') + '>' + SPORT_NAMES[k] + (S.sport === k ? '<span class="ck">&#10003;</span>' : '') + '</button>').join(''),
+  'left', $('modeChip'));
+$('more').onclick = () => showPop(
+  (S.sport === 'custom' ? '' : '<button role="menuitem" data-act="rules">Rules</button>') +
+  '<button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
+  'right', $('more'));
+pop.onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  closePop();
+  if (b.dataset.sport) { if (S.sport !== b.dataset.sport) { S.sport = b.dataset.sport; save(); render(); } }
+  else if (b.dataset.act === 'rules') openRules();
+  else if (b.dataset.act === 'settings') openSettings();
+  else if (b.dataset.act === 'reset') resetStep1();
+};
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#pop,#modeChip,#more')) closePop(); });
 document.querySelectorAll('#sportSeg button').forEach(b => b.onclick = () => {
   if (S.sport === b.dataset.sport) return;
   S.sport = b.dataset.sport; save(); render();
