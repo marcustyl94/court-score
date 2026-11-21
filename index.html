@@ -99,6 +99,19 @@ button:disabled{opacity:.35;cursor:default}
   font-weight:900;letter-spacing:.08em;padding:8px 14px;border-radius:10px;font-size:clamp(14px,5cqh,26px);display:none}
 .team.won .badge{display:block}
 
+/* player rotation */
+.prow{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
+.prow .pg{margin-left:auto;color:var(--muted);font-size:14px}
+.pst{font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--bg);color:var(--muted)}
+.pst.play{background:var(--text);color:var(--bg)}
+.prow.in{padding:6px}
+.prow.in input{flex:1;min-width:0;height:44px;border-radius:10px;border:0;background:var(--bg);color:var(--text);padding:0 12px;font:inherit;font-size:16px}
+.px{width:44px;height:44px;font-size:26px;color:var(--muted)}
+.vs{background:var(--panel2);border-radius:14px;padding:14px;margin:0 0 12px;text-align:center;box-shadow:0 0 0 1px var(--line) inset}
+.vs .t{font-weight:800;font-size:18px}
+.vs .v{color:var(--muted);font-size:13px;margin:4px 0}
+.vs .s{color:var(--muted);font-size:14px;margin-top:8px}
+
 /* sheets */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
 .scrim.show{display:flex}
@@ -146,7 +159,7 @@ button:disabled{opacity:.35;cursor:default}
 
 @media (max-width:600px){
   .bar{gap:8px}
-  #sportSeg,#help,#settings,#reset{display:none!important}
+  #sportSeg,#help,#settings,#reset,#players{display:none!important}
   .chip,#more{display:flex}
   .chip{min-width:0;padding:0 12px}
   .chip .car{font-size:12px;color:var(--muted)}
@@ -177,6 +190,7 @@ button:disabled{opacity:.35;cursor:default}
     <div class="status"><div class="main" id="stMain"></div><div class="sub" id="stSub"></div></div>
     <div class="tools">
       <button class="tbtn" id="undo" aria-label="Undo last point">&#8630; Undo</button>
+      <button class="tbtn" id="players" aria-label="Players">Players</button>
       <button class="tbtn" id="help" aria-label="Rules">?</button>
       <button class="tbtn" id="settings" aria-label="Settings">&#9881;</button>
       <button class="tbtn reset" id="reset">Reset</button>
@@ -205,7 +219,7 @@ function newPickle(o) {
            startSrv: 0, srv: 0, num: 2, winner: null };
 }
 function newState() {
-  return { sport: 'tennis', names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
+  return { sport: 'tennis', rot: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
 }
 
 function tennisSetsWon(t) {
@@ -297,6 +311,33 @@ function pickCanWin(k, i) {
 function pickMatchPoint(k, i) {
   return pickCanWin(k, i) && k.gw[i] + 1 >= Math.ceil(k.bestOf / 2);
 }
+
+/* ---------- player rotation: doubles, 4 to 6 players, one court ---------- */
+function newRot(names) {
+  return { players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, round: 0, lineup: null, next: null, recorded: false };
+}
+const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
+/* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
+function rotPick(rot) {
+  const P = rot.players;
+  const idx = P.map((_, i) => i).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
+  const play = idx.slice(0, 4).sort((a, b) => a - b), sit = idx.slice(4).sort((a, b) => a - b);
+  const a = play[0], b = play[1], c = play[2], d = play[3];
+  let best = null;
+  [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]].forEach(t => {
+    const cost = ((rot.partner[pkey(t[0][0], t[0][1])] || 0) + (rot.partner[pkey(t[1][0], t[1][1])] || 0)) * 10 +
+      t[0].reduce((s, x) => s + t[1].reduce((s2, y) => s2 + (rot.opp[pkey(x, y)] || 0), 0), 0);
+    if (!best || cost < best.cost) best = { cost: cost, t: t };
+  });
+  return { teams: best.t, sit: sit };
+}
+function rotRecord(rot) {
+  const L = rot.lineup;
+  L.teams.forEach(t => { const k = pkey(t[0], t[1]); rot.partner[k] = (rot.partner[k] || 0) + 1; });
+  L.teams[0].forEach(x => L.teams[1].forEach(y => { const k = pkey(x, y); rot.opp[k] = (rot.opp[k] || 0) + 1; }));
+  L.teams.forEach(t => t.forEach(i => { rot.players[i].g++; rot.players[i].last = rot.round; }));
+  rot.round++;
+}
 /*ENDLOGIC*/
 
 /* ---------- app state ---------- */
@@ -314,7 +355,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
+function fixState(st) { if (!('rot' in st)) st.rot = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
 }
@@ -366,8 +407,71 @@ function addPoint(i) {
   const now = Date.now();
   if (now - lastTap[i] < 250) return;        // ignore accidental double taps
   lastTap[i] = now;
-  const ok = act(() => S.sport === 'tennis' ? tennisPoint(S.tennis, i) : pickPoint(cur(), i));
+  let rec = false;
+  const ok = act(() => { const r = S.sport === 'tennis' ? tennisPoint(S.tennis, i) : pickPoint(cur(), i); if (r !== false) rec = rotAfterPoint(); return r; });
+  if (rec) setTimeout(() => { if (S.rot && S.rot.recorded && !$('scrim').classList.contains('show')) openPlayers(); }, 900);
   if (ok) { const el = $('score' + i); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+}
+/* ---------- player rotation (app side) ---------- */
+function freshMatch() { if (S.sport === 'tennis') S.tennis = newTennis(S.tennis); else S[S.sport] = newPickle(S[S.sport]); }
+function rotApply() { const r = S.rot, p = r.players; S.names = r.lineup.teams.map(t => p[t[0]].n + ' & ' + p[t[1]].n); }
+function rotAfterPoint() {
+  const r = S.rot;
+  if (!r || !r.lineup || r.recorded || cur().winner === null) return false;
+  rotRecord(r); r.recorded = true; r.next = rotPick(r);
+  return true;
+}
+function rotStart(names) { act(() => { S.rot = newRot(names); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
+function rotNext() { act(() => { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); freshMatch(); }); }
+let draftP = null, endArm = false;
+function openPlayers() {
+  const r = S.rot;
+  if (!r) { openPlayerSetup(); return; }
+  endArm = false;
+  const p = r.players, L = r.recorded ? r.next : r.lineup;
+  const nm = t => esc(p[t[0]].n) + ' &amp; ' + esc(p[t[1]].n);
+  const playing = L.teams.flat();
+  const rows = p.map((x, i) => `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span></div>`).join('');
+  openSheet(`
+    <h2>${r.recorded ? 'Match finished' : 'Players'}</h2>
+    <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. Teams change after every match.'}</p>
+    <div class="vs"><div class="v">${r.recorded ? 'Next match' : 'Now playing'}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
+    <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
+    ${rows}
+    ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button>' : ''}
+    <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
+    <button class="opt danger" id="pEnd">End rotation</button>`);
+  if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
+  $('pDone').onclick = closeSheet;
+  $('pEnd').onclick = () => {
+    if (!endArm) { endArm = true; $('pEnd').textContent = 'Tap again to end rotation'; return; }
+    act(() => { S.rot = null; }); closeSheet(); toast('Rotation ended');
+  };
+}
+function openPlayerSetup() {
+  if (!draftP) draftP = ['', '', '', '', ''];
+  const n = draftP.length;
+  const sync = () => document.querySelectorAll('.pin').forEach(el => { draftP[+el.dataset.i] = el.value; });
+  openSheet(`
+    <h2>Rotate players</h2>
+    <p>Doubles on one court with 4 to 6 players. After each match the app picks the next four so everyone plays about the same number of matches, and partners change.</p>
+    ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="Player ${i + 1}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${n > 4 ? `<button class="px" data-rm="${i}" aria-label="Remove player ${i + 1}">&times;</button>` : ''}</div>`).join('')}
+    ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
+    <button class="opt" id="pStart">Start rotation<small>Starts a fresh match with the first four players.</small></button>
+    <button class="opt ghost" id="pBack">Cancel</button>`);
+  if ($('pAdd')) $('pAdd').onclick = () => { sync(); draftP.push(''); openPlayerSetup(); };
+  document.querySelectorAll('.px').forEach(b => b.onclick = () => { sync(); draftP.splice(+b.dataset.rm, 1); openPlayerSetup(); });
+  $('pStart').onclick = () => {
+    sync();
+    const seen = {};
+    const names = draftP.map((v, i) => {
+      let nm = v.trim() || 'Player ' + (i + 1);
+      const key = nm.toLowerCase(); seen[key] = (seen[key] || 0) + 1;
+      return seen[key] > 1 ? nm + ' ' + seen[key] : nm;
+    });
+    draftP = null; closeSheet(); rotStart(names); toast('Rotation started');
+  };
+  $('pBack').onclick = closeSheet;
 }
 function setServer(i) {
   const k = cur();
@@ -387,6 +491,11 @@ function render() {
   $('undo').disabled = history.length === 0;
   [0, 1].forEach(i => { if (document.activeElement !== $('name' + i)) $('name' + i).value = S.names[i]; });
   if (S.sport === 'tennis') renderTennis(); else renderPickle();
+  if (S.rot && S.rot.lineup) {
+    const r = S.rot, p = r.players;
+    $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot"><b>Next match &rsaquo;</b></span>' :
+      (r.lineup.sit.length ? `<span class="pc">Out <b>${esc(r.lineup.sit.map(i => p[i].n).join(', '))}</b></span>` : ''));
+  }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
   fitChips();
@@ -499,6 +608,7 @@ function toast(msg) {
 
 function resetStep1() {
   const over = cur().winner !== null;
+  if (over && S.rot && S.rot.recorded) { openPlayers(); return; }
   // a finished match has nothing left to choose: go straight to the confirmation
   if (over) { resetStep2('match'); return; }
   // best of 1 (pickleball, custom): the game in play is the whole match, so there is only one kind of reset
@@ -559,7 +669,8 @@ function openSettings() {
     ${k.serveMode === 'sideout' ? `<div class="row"><label>Players</label>${segHtml('sPl', [['doubles', 'Doubles'], ['singles', 'Singles']], k.singles ? 'singles' : 'doubles')}</div>
     <p>Call: server score, receiver score${k.singles ? '' : ', then server number (1 or 2)'}. Tap the team that won the rally.</p>` : ''}`}`;
 
-  openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<button class="opt ghost" id="sDone">Done</button>`);
+  openSheet(`<h2>${S.sport === 'tennis' ? 'Tennis' : isCustom ? 'Custom game' : 'Pickleball'} settings</h2>${body}<div class="row"><label>Player rotation</label><button class="opt" id="sRot" style="margin:0">${S.rot ? S.rot.players.length + ' players' : 'Off'}<small>Doubles with 4 to 6 players on one court. Picks fair teams for each match.</small></button></div><button class="opt ghost" id="sDone">Done</button>`);
+  $('sRot').onclick = openPlayers;
   const bind = (id, fn) => { const el = $(id); if (!el) return;
     el.querySelectorAll('button').forEach(b => b.onclick = () => { fn(b.dataset.v); openSettings(); }); };
   bind('sBest', v => act(() => { S.tennis.bestOf = +v; }));
@@ -625,13 +736,14 @@ function openRules() {
 $('help').onclick = openRules;
 
 /* ---------- wire up ---------- */
-$('stSub').onclick = openSettings;
+$('stSub').onclick = () => (S.rot && S.rot.recorded) ? openPlayers() : openSettings();
 $('undo').onclick = () => {
   if (!history.length) return;
   S = fixState(JSON.parse(history.pop())); save(); render(); toast('Undone');
 };
 $('reset').onclick = resetStep1;
 $('settings').onclick = openSettings;
+$('players').onclick = openPlayers;
 const SPORT_NAMES = { tennis: 'Tennis', pickle: 'Pickleball', custom: 'Custom' };
 const pop = $('pop');
 function closePop() { pop.classList.remove('show'); $('modeChip').setAttribute('aria-expanded', 'false'); $('more').setAttribute('aria-expanded', 'false'); }
@@ -647,13 +759,14 @@ $('modeChip').onclick = () => showPop(
   'left', $('modeChip'));
 $('more').onclick = () => showPop(
   (S.sport === 'custom' ? '' : '<button role="menuitem" data-act="rules">Rules</button>') +
-  '<button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
+  '<button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
   'right', $('more'));
 pop.onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   closePop();
   if (b.dataset.sport) { if (S.sport !== b.dataset.sport) { S.sport = b.dataset.sport; save(); render(); } }
   else if (b.dataset.act === 'rules') openRules();
+  else if (b.dataset.act === 'players') openPlayers();
   else if (b.dataset.act === 'settings') openSettings();
   else if (b.dataset.act === 'reset') resetStep1();
 };
