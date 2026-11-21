@@ -410,7 +410,8 @@ function addPoint(i) {
   if (now - lastTap[i] < 250) return;        // ignore accidental double taps
   lastTap[i] = now;
   let rec = false;
-  const ok = act(() => { const r = S.sport === 'tennis' ? tennisPoint(S.tennis, i) : pickPoint(cur(), i); if (r !== false) rec = rotAfterPoint(); return r; });
+  const ok = act(() => { if (S.rot && S.rot.recorded && cur().winner === null) rotAdvance();   // playing on without tapping Start next match (for example after switching sport)
+    const r = S.sport === 'tennis' ? tennisPoint(S.tennis, i) : pickPoint(cur(), i); if (r !== false) rec = rotAfterPoint(); return r; });
   if (rec) setTimeout(() => { if (S.rot && S.rot.recorded && !$('scrim').classList.contains('show')) openPlayers(); }, 900);
   if (ok) { const el = $('score' + i); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
 }
@@ -424,7 +425,8 @@ function rotAfterPoint() {
   return true;
 }
 function rotStart(names) { act(() => { S.rot = newRot(names); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
-function rotNext() { act(() => { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); freshMatch(); }); }
+function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
+function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, endArm = false;
 function openPlayers() {
   const r = S.rot;
