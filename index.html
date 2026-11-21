@@ -221,7 +221,7 @@ function newPickle(o) {
            startSrv: 0, srv: 0, num: 2, winner: null };
 }
 function newState() {
-  return { sport: 'tennis', rot: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
+  return { sport: 'tennis', rot: null, roster: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
 }
 
 function tennisSetsWon(t) {
@@ -358,7 +358,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!('rot' in st)) st.rot = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
+function fixState(st) { if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
 }
@@ -425,7 +425,7 @@ function rotAfterPoint() {
   rotRecord(r); r.recorded = true; r.next = rotPick(r);
   return true;
 }
-function rotStart(names, mode) { act(() => { S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
+function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
 function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, draftMode = 'doubles', endArm = false;
@@ -455,7 +455,7 @@ function openPlayers() {
   };
 }
 function openPlayerSetup() {
-  if (!draftP) draftP = ['', '', '', '', ''];
+  if (!draftP) { draftP = S.roster ? S.roster.names.slice() : ['', '', '', '', '']; draftMode = S.roster ? S.roster.mode : 'doubles'; }
   const single = draftMode === 'singles', min = single ? 3 : 4;
   while (draftP.length < min) draftP.push('');
   const n = draftP.length;
