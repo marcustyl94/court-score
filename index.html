@@ -132,6 +132,8 @@ button:disabled{opacity:.35;cursor:default}
 
 .mc{background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
 .mc.on{box-shadow:0 0 0 2px var(--a) inset}
+.mc.pick{cursor:pointer}
+.mc.pick:not(.on):active{background:var(--bg)}
 .mc .mt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
 .mc h3{margin:0;font-size:16px}
 .mc p{margin:0;font-size:15px;line-height:1.4;color:var(--text)}
@@ -714,8 +716,8 @@ function openRules() {
       ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next. Shows which team serves.'],
       ['sideout', 'Side-out (traditional)', sideText]];
     note = '<h3 class="mh">Serve tracking</h3>' + modes.map(m =>
-      '<div class="mc' + (k.serveMode === m[0] ? ' on' : '') + '"><div class="mt"><h3>' + m[1] + '</h3>' +
-      (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<button class="use" data-mode="' + m[0] + '">Use</button>') +
+      '<div class="mc pick' + (k.serveMode === m[0] ? ' on' : '') + '" data-mode="' + m[0] + '" role="button" tabindex="0" aria-pressed="' + (k.serveMode === m[0]) + '"><div class="mt"><h3>' + m[1] + '</h3>' +
+      (k.serveMode === m[0] ? '<span class="sel">Selected</span>' : '<span class="use">Use</span>') +
       '</div><p>' + m[2] + '</p>' +
       (m[0] === 'sideout' && k.serveMode === 'sideout' ? '<div class="seg pl"><button data-pl="doubles" class="' + (k.singles ? '' : 'on') + '">Doubles</button><button data-pl="singles" class="' + (k.singles ? 'on' : '') + '">Singles</button></div>' : '') +
       '</div>').join('');
@@ -724,9 +726,14 @@ function openRules() {
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>' + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
     '<button class="opt ghost" id="hDone">Got it</button>');
   $('hDone').onclick = closeSheet;
-  document.querySelectorAll('#sheet .use').forEach(b => b.onclick = () => {
-    act(() => { S.pickle.serveMode = b.dataset.mode; });
-    const keep = $('sheet').scrollTop; openRules(); $('sheet').scrollTop = keep;
+  document.querySelectorAll('#sheet .mc.pick').forEach(c => {
+    const choose = e => {
+      if (e.target.closest('.pl') || S.pickle.serveMode === c.dataset.mode) return;
+      act(() => { S.pickle.serveMode = c.dataset.mode; });
+      const keep = $('sheet').scrollTop; openRules(); $('sheet').scrollTop = keep;
+    };
+    c.onclick = choose;
+    c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(e); } };
   });
   document.querySelectorAll('#sheet .pl button').forEach(b => b.onclick = () => {
     act(() => { S.pickle.singles = b.dataset.pl === 'singles'; });
