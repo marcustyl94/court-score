@@ -56,13 +56,13 @@ button:disabled{opacity:.35;cursor:default}
 .tbtn.reset{color:#ffb3ba}
 .chip,#more{display:none}
 .bar{position:relative}
-.pop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
-.pop.show{display:block}
-.pop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:0 14px;min-height:46px;border-radius:10px;font-weight:600;font-size:16px}
-.pop button:active{background:var(--panel)}
-.pop button.on{color:var(--text);background:var(--panel)}
-.pop button.dng{color:#ffb3ba}
-.pop .ck{margin-left:auto}
+.mpop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
+.mpop.show{display:block}
+.mpop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:0 14px;min-height:46px;border-radius:10px;font-weight:600;font-size:16px}
+.mpop button:active{background:var(--panel)}
+.mpop button.on{color:var(--text);background:var(--panel)}
+.mpop button.dng{color:#ffb3ba}
+.mpop .ck{margin-left:auto}
 
 /* board */
 .board{display:grid;gap:10px;padding:0 12px 12px;min-height:0;min-width:0}
@@ -155,8 +155,8 @@ button:disabled{opacity:.35;cursor:default}
   #more{order:3}
   .chip{order:1}
   .status{order:5!important}
-  .pop.left{left:12px}
-  .pop.right{right:12px}
+  .mpop.left{left:12px}
+  .mpop.right{right:12px}
 }
 @media (orientation:portrait){
   .bar{flex-wrap:wrap}
@@ -182,7 +182,7 @@ button:disabled{opacity:.35;cursor:default}
       <button class="tbtn reset" id="reset">Reset</button>
       <button class="tbtn" id="more" aria-label="More" aria-haspopup="true" aria-expanded="false">&#8943;</button>
     </div>
-    <div class="pop" id="pop" role="menu"></div>
+    <div class="mpop" id="pop" role="menu"></div>
   </header>
   <main class="board" id="board"></main>
 </div>
@@ -640,7 +640,7 @@ function showPop(html, side, btn) {
   closePop();
   if (was) return;
   pop.innerHTML = html; pop.dataset.for = btn.id;
-  pop.className = 'pop show ' + side; btn.setAttribute('aria-expanded', 'true');
+  pop.className = 'mpop show ' + side; btn.setAttribute('aria-expanded', 'true');
 }
 $('modeChip').onclick = () => showPop(
   Object.keys(SPORT_NAMES).map(k => '<button role="menuitem" data-sport="' + k + '"' + (S.sport === k ? ' class="on"' : '') + '>' + SPORT_NAMES[k] + (S.sport === k ? '<span class="ck">&#10003;</span>' : '') + '</button>').join(''),
