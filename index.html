@@ -456,10 +456,11 @@ function openPlayers() {
     <div class="vs"><div class="v">${r.recorded ? 'Next match' : 'Now playing'}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     ${rows}
-    ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button>' : ''}
+    ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button><button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>' : ''}
     <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
     <button class="opt danger" id="pEnd">End rotation</button>`);
   if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
+  if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }; rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
   $('pDone').onclick = closeSheet;
   $('pEnd').onclick = () => {
     if (!endArm) { endArm = true; $('pEnd').textContent = 'Tap again to end rotation'; return; }
@@ -640,7 +641,7 @@ function resetStep1() {
     <h2>${over ? 'Match finished' : 'Reset scores'}</h2>
     <p>${over ? 'This match is over, so there are no game points left to reset. Start a new match to play again.' : 'Choose what to reset. You will be asked to confirm on the next step.'}</p>
     ${over ? '' : '<button class="opt" id="rGame">Reset current game points<small>Clears the points in play. Games and sets stay.</small></button>'}
-    <button class="opt danger" id="rMatch">Start a new match<small>Clears all points, games and sets. Names and settings stay.</small></button>
+    <button class="opt danger" id="rMatch">Start a new match<small>Clears all points, games and sets. ${S.rot ? 'Same teams play again. This match isn\'t counted.' : 'Names and settings stay.'}</small></button>
     <button class="opt ghost" id="rCancel">Cancel</button>`);
   if ($('rGame')) $('rGame').onclick = () => resetStep2('game');
   $('rMatch').onclick = () => resetStep2('match');
@@ -650,6 +651,7 @@ function resetStep2(scope, single) {
   openSheet(`
     <h2>${single ? 'Reset the score?' : scope === 'match' ? 'Start a new match?' : 'Reset current game points?'}</h2>
     <p>Press and hold the button for about one second to confirm. You can still use Undo right after.</p>
+    ${S.rot && scope === 'match' ? '<p class="sub2">Same teams play again. This match isn\'t counted.</p>' : ''}
     <button class="hold" id="hold"><span class="fill"></span><span class="lbl">Hold to confirm</span></button>
     <button class="opt ghost" id="rBack">Cancel</button>`);
   const h = $('hold');
