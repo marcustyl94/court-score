@@ -444,7 +444,7 @@ function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, draftMode = 'doubles', endArm = false;
 function openPlayers() {
   const r = S.rot;
-  if (!r) { openPlayerSetup(); return; }
+  if (!r) { openPlayerSetup(true); return; }
   endArm = false;
   const p = r.players, L = r.recorded ? r.next : r.lineup;
   const single = r.mode === 'singles';
@@ -468,7 +468,8 @@ function openPlayers() {
     act(() => { S.rot = null; }); closeSheet(); toast('Rotation ended');
   };
 }
-function openPlayerSetup() {
+function openPlayerSetup(fresh) {
+  if (fresh) draftP = null;
   if (!draftP) { draftP = S.roster ? S.roster.names.slice() : ['', '', '', '', '']; draftMode = S.roster ? S.roster.mode : 'doubles'; }
   const single = draftMode === 'singles', min = single ? 3 : 4;
   while (draftP.length < min) draftP.push('');
@@ -480,9 +481,11 @@ function openPlayerSetup() {
     <p>${single ? 'Singles on one court with 3 to 6 players. After each match the app picks the next two so everyone plays about the same number of matches, and opponents change.' : 'Doubles on one court with 4 to 6 players. After each match the app picks the next four so everyone plays about the same number of matches, and partners change.'}</p>
     ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="Player ${i + 1}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${n > min ? `<button class="px" data-rm="${i}" aria-label="Remove player ${i + 1}">&times;</button>` : ''}</div>`).join('')}
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
+    ${draftP.some(v => v.trim()) ? '<button class="opt ghost" id="pClear">Clear names</button>' : ''}
     <button class="opt" id="pStart">Start rotation<small>Starts a fresh match with the first ${single ? 'two' : 'four'} players.</small></button>
     <button class="opt ghost" id="pBack">Cancel</button>`);
   document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => { sync(); draftMode = b.dataset.v; openPlayerSetup(); });
+  if ($('pClear')) $('pClear').onclick = () => { draftP = draftP.map(() => ''); openPlayerSetup(); };
   if ($('pAdd')) $('pAdd').onclick = () => { sync(); draftP.push(''); openPlayerSetup(); };
   document.querySelectorAll('.px').forEach(b => b.onclick = () => { sync(); draftP.splice(+b.dataset.rm, 1); openPlayerSetup(); });
   $('pStart').onclick = () => {
