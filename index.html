@@ -120,6 +120,7 @@ button:disabled{opacity:.35;cursor:default}
 .sheet h2{margin:0 0 6px;font-size:22px}
 .sheet p{margin:0 0 16px;color:var(--muted);font-size:15px;line-height:1.4}
 .opt{display:block;width:100%;text-align:left;padding:16px;border-radius:14px;background:var(--panel2);margin-bottom:10px;font-weight:700;font-size:17px}
+.opt.big{min-height:72px;font-size:20px}
 .opt small{display:block;color:var(--muted);font-weight:500;margin-top:3px;font-size:14px}
 .opt.danger{color:#ffb3ba}
 .opt.ghost{background:transparent;box-shadow:0 0 0 1px var(--line) inset;text-align:center}
@@ -829,7 +830,22 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 /* block pinch / double-tap zoom on iOS */
 ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
+let firstVisit = false;
+try { firstVisit = localStorage.getItem(KEY) === null; } catch (e) {}
 load(); buildBoard(); render(); keepAwake();
+function openWelcome() {
+  openSheet(`
+    <h2>What are you playing?</h2>
+    <p>Pick a sport to start. You can switch anytime from the top bar.</p>
+    <button class="opt big" data-w="tennis">Tennis<small>Best of 3 sets, Ad scoring, tiebreak at 6&#8209;6.</small></button>
+    <button class="opt big" data-w="pickle">Pickleball<small>Games to 11, win by 2.</small></button>
+    <button class="opt big" data-w="custom">Custom<small>Choose your own winning points.</small></button>
+    <p class="sub2" style="text-align:center;margin-top:10px">Tap the settings under the score anytime to change them.</p>`);
+  document.querySelectorAll('#sheet [data-w]').forEach(b => b.onclick = () => {
+    S.sport = b.dataset.w; save(); render(); closeSheet();
+  });
+}
+if (firstVisit) { save(); openWelcome(); }
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
