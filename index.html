@@ -336,7 +336,20 @@ const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 function rotPick(rot) {
   const P = rot.players;
   const idx = P.map((_, i) => i).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
-  if (rot.mode === 'singles') return { teams: [[idx[0]], [idx[1]]], sit: idx.slice(2).sort((a, b) => a - b) };
+  if (rot.mode === 'singles') {
+    /* fairness first: only players on the fewest matches (topped up from the next level if needed), then the pair that has met least, then the longest waiters */
+    const minG = P[idx[0]].g, pool = idx.filter(i => P[i].g === minG);
+    const cand = pool.length >= 2 ? pool : idx.filter(i => P[i].g <= P[idx[1]].g);
+    let best = null;
+    for (let x = 0; x < cand.length; x++) for (let y = x + 1; y < cand.length; y++) {
+      const a = cand[x], b = cand[y];
+      if (pool.length < 2 && !(a === pool[0] || b === pool[0])) continue;
+      const rest = pool.length >= 2 ? pool.filter(i => i !== a && i !== b) : [];
+      const cost = ((rot.opp[pkey(a, b)] || 0) + pairCost(rest, rot)) * 1000 + P[a].last + P[b].last;
+      if (!best || cost < best.cost) best = { cost: cost, a: Math.min(a, b), b: Math.max(a, b) };
+    }
+    return { teams: [[best.a], [best.b]], sit: idx.filter(i => i !== best.a && i !== best.b).sort((a, b) => a - b) };
+  }
   const play = idx.slice(0, 4).sort((a, b) => a - b), sit = idx.slice(4).sort((a, b) => a - b);
   const a = play[0], b = play[1], c = play[2], d = play[3];
   let best = null;
@@ -346,6 +359,14 @@ function rotPick(rot) {
     if (!best || cost < best.cost) best = { cost: cost, t: t };
   });
   return { teams: best.t, sit: sit };
+}
+/* fewest repeat meetings when the rest of this round's players are paired up (one may be left over) */
+function pairCost(list, rot) {
+  if (list.length < 2) return 0;
+  const [h, ...t] = list;
+  let best = list.length % 2 ? pairCost(t, rot) : Infinity;
+  t.forEach((o, k) => { best = Math.min(best, (rot.opp[pkey(h, o)] || 0) + pairCost(t.filter((_, j) => j !== k), rot)); });
+  return best;
 }
 function rotRecord(rot) {
   const L = rot.lineup;
