@@ -54,6 +54,8 @@ button:disabled{opacity:.35;cursor:default}
   display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 0 1px var(--line) inset}
 .tbtn:active:not(:disabled){background:var(--panel2)}
 .tbtn.reset{color:#ffb3ba}
+.pc.set{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pc.rot{flex-shrink:0;max-width:55%}
 .chip,#more{display:none}
 .bar{position:relative}
 .mpop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
@@ -563,7 +565,7 @@ function render() {
   if (S.rot && S.rot.lineup) {
     const r = S.rot, p = r.players;
     $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot"><b>Next match &rsaquo;</b></span>' :
-      `<span class="pc">Match <b>${r.round + 1}</b></span>` + (r.lineup.sit.length ? `<span class="pc">Out <b>${esc(r.lineup.sit.map(i => p[i].n).join(', '))}</b></span>` : ''));
+      `<span class="pc set rot">Match <b>${r.round + 1}</b>${r.lineup.sit.length ? ' &middot; Out <b>' + esc(r.lineup.sit.map(i => p[i].n).join(', ')) + '</b>' : ''}</span>`);
   }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
@@ -600,7 +602,7 @@ function renderTennis() {
     hl = top === 3 ? 'mp' : top === 2 ? 'gp' : (ids.length === 2 ? 'deuce' : ids[0] ? 'advB' : 'advA');
   }
   if (t.winner === null && t.last) { main = 'SET ' + t.last.n + ' TO ' + n[t.last.w]; hl = 'win'; }
-  $('stMain').textContent = main; $('stSub').innerHTML = (t.winner === null && t.last ? `<span class="pc hot"><b>${t.last.score[t.last.w]} - ${t.last.score[1 - t.last.w]}</b></span>` : '') + (hl && t.winner === null ? `<span class="pc">Set <b>${t.sets.length + 1}</b></span>` : '') + `<span class="pc">Best of <b>${t.bestOf}</b> sets</span><span class="pc"><b>${t.noAd ? 'No-Ad' : 'Ad scoring'}</b></span><span class="pc">Tiebreak <b>6-6</b></span>`;
+  $('stMain').textContent = main; $('stSub').innerHTML = (t.winner === null && t.last ? `<span class="pc hot"><b>${t.last.score[t.last.w]} - ${t.last.score[1 - t.last.w]}</b></span>` : '') + `<span class="pc set">${hl && t.winner === null ? 'Set <b>' + (t.sets.length + 1) + '</b> &middot; ' : ''}${t.bestOf > 1 ? 'Best of <b>' + t.bestOf + '</b> &middot; ' : '<b>1</b> set &middot; '}<b>${t.noAd ? 'No-Ad' : 'Ad'}</b> &middot; Tiebreak <b>6-6</b></span>`;
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = t.winner !== null ? won[i] : tennisPointLabel(t, i);
@@ -641,8 +643,7 @@ function renderPickle() {
   }
   if (k.winner === null && k.last) { main = 'GAME ' + k.last.n + ' TO ' + n[k.last.w]; hl = 'win'; }
   $('stMain').textContent = main; $('stSub').innerHTML = (k.winner === null && k.last ? `<span class="pc hot"><b>${k.last.score[k.last.w]} - ${k.last.score[1 - k.last.w]}</b></span>` : '') + (k.winner === null && sideout && (gpT[0] || gpT[1]) ? `<span class="pc hot"><b>${call}</b></span>` : '') +
-      (k.winner === null && (hl || sideout) ? `<span class="pc">Game <b>${k.games.length + 1}</b></span>` : '') + `<span class="pc">Play to <b>${k.target}</b></span><span class="pc">Win by <b>${k.winBy2 ? 2 : 1}</b></span><span class="pc">Best of <b>${k.bestOf}</b></span>` +
-      (k.serveMode !== 'off' ? `<span class="pc"><b>${sideout ? (k.singles ? 'Side-out singles' : 'Side-out doubles') : 'Rally'}</b></span>` : '');
+      `<span class="pc set">${k.winner === null && (hl || sideout) && k.bestOf > 1 ? 'Game <b>' + (k.games.length + 1) + '</b> &middot; ' : ''}${k.winBy2 ? 'To <b>' + k.target + '</b> &middot; Win by <b>2</b>' : 'First to <b>' + k.target + '</b>'}${k.bestOf > 1 ? ' &middot; Best of <b>' + k.bestOf + '</b>' : ''}${k.serveMode !== 'off' ? ' &middot; <b>' + (sideout ? (k.singles ? 'Side-out singles' : 'Side-out') : 'Rally') + '</b>' : ''}</span>`;
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
