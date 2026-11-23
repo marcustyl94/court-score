@@ -430,6 +430,11 @@ function addPoint(i) {
   if (ok) { const el = $('score' + i); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
 }
 /* ---------- player rotation (app side) ---------- */
+function matchFresh() {
+  const c = cur();
+  if (c.winner !== null || c.p[0] + c.p[1] > 0) return false;
+  return S.sport === 'tennis' ? c.sets.length === 0 && c.g[0] + c.g[1] === 0 : c.games.length === 0;
+}
 function freshMatch() { if (S.sport === 'tennis') S.tennis = newTennis(S.tennis); else S[S.sport] = newPickle(S[S.sport]); }
 function rotApply() { const r = S.rot, p = r.players; S.names = r.lineup.teams.map(t => t.map(i => p[i].n).join(' & ')); }
 function rotAfterPoint() {
@@ -453,15 +458,30 @@ function openPlayers() {
   const rows = p.map((x, i) => `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span></div>`).join('');
   openSheet(`
     <h2>${r.recorded ? 'Match finished' : 'Players'}</h2>
-    <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (single ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
+    <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
     <div class="vs"><div class="v">${r.recorded ? 'Next match' : 'Now playing'}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
+    <div class="row" style="margin-top:0">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
+    ${p.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
+    ${!r.recorded && (L.teams[0].length === 1) !== single ? '<p class="sub2">' + (single ? 'Singles' : 'Doubles') + ' from the next match. The current match carries on.</p>' : ''}
     ${rows}
     ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button><button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>' : ''}
     <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
     <button class="opt danger" id="pEnd">End rotation</button>`);
   if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
   if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }; rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
+  document.querySelectorAll('#pRMode button').forEach(b => {
+    if (b.dataset.v === 'doubles' && p.length < 4) b.disabled = true;
+    b.onclick = () => {
+      if (b.dataset.v === r.mode) return;
+      act(() => {
+        const R = S.rot; R.mode = b.dataset.v;
+        if (R.recorded) R.next = rotPick(R);
+        else if (matchFresh()) { R.lineup = rotPick(R); rotApply(); }
+      });
+      openPlayers();
+    };
+  });
   $('pDone').onclick = closeSheet;
   $('pEnd').onclick = () => {
     if (!endArm) { endArm = true; $('pEnd').textContent = 'Tap again to end rotation'; return; }
@@ -611,7 +631,8 @@ function renderPickle() {
     const tracking = k.serveMode !== 'off' && k.winner === null;
     sv.style.visibility = tracking ? 'visible' : 'hidden';
     const isSrv = tracking && k.srv === i;
-    sv.textContent = isSrv ? (k.serveMode === 'sideout' && !k.singles ? '● SERVER ' + k.num : '● SERVING') : 'serve';
+    const side = k.p[i] % 2 === 0 ? 'RIGHT' : 'LEFT';
+    sv.textContent = !isSrv ? 'serve' : k.serveMode === 'sideout' && !k.singles ? '● SERVER ' + k.num : (k.serveMode === 'rally' || k.singles) ? '● SERVE ' + side : '● SERVING';
     sv.classList.toggle('on', isSrv);
     $('team' + i).classList.toggle('won', k.winner === i);
     $('team' + i).classList.toggle('mp', mpT[i]);
@@ -750,7 +771,7 @@ function openRules() {
       : 'Only the server scores. Receivers who win the rally get the serve, no point. Both partners serve first. Call: your score, their score, server 1 or 2.';
     const modes = [
       ['off', 'Off', 'Points only. No serve indicator.'],
-      ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next. Shows which team serves.'],
+      ['rally', 'Rally', 'Every rally scores a point for the winner, who serves next. Serve from the right on an even score, the left on odd.'],
       ['sideout', 'Side-out (traditional)', sideText]];
     note = '<h3 class="mh">Serve tracking</h3>' + modes.map(m =>
       '<div class="mc pick' + (k.serveMode === m[0] ? ' on' : '') + '" data-mode="' + m[0] + '" role="button" tabindex="0" aria-pressed="' + (k.serveMode === m[0]) + '"><div class="mt"><h3>' + m[1] + '</h3>' +
