@@ -478,9 +478,9 @@ function openPlayers() {
   const playing = L.teams.flat();
   const rows = p.map((x, i) => `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span></div>`).join('');
   openSheet(`
-    <h2>${r.recorded ? 'Match finished' : 'Players'}</h2>
+    <h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
-    <div class="vs"><div class="v">${r.recorded ? 'Next match' : 'Now playing'}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
+    <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     <div class="row" style="margin-top:0">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
     ${p.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
@@ -563,7 +563,7 @@ function render() {
   if (S.rot && S.rot.lineup) {
     const r = S.rot, p = r.players;
     $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot"><b>Next match &rsaquo;</b></span>' :
-      (r.lineup.sit.length ? `<span class="pc">Out <b>${esc(r.lineup.sit.map(i => p[i].n).join(', '))}</b></span>` : ''));
+      `<span class="pc">Match <b>${r.round + 1}</b></span>` + (r.lineup.sit.length ? `<span class="pc">Out <b>${esc(r.lineup.sit.map(i => p[i].n).join(', '))}</b></span>` : ''));
   }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
