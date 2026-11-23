@@ -564,7 +564,7 @@ function renderTennis() {
     else if (t.noAd && t.p[0] >= 3 && t.p[1] >= 3) { main = 'Sudden death point'; hl = 'sd'; }
     else if (!t.noAd && t.p[0] >= 3 && t.p[1] >= 3) {
       if (t.p[0] === t.p[1]) { main = 'DEUCE'; hl = 'deuce'; }
-      else { const a = t.p[0] > t.p[1] ? 0 : 1; main = 'ADVANTAGE ' + n[a]; hl = a ? 'advB' : 'advA'; }
+      else { const a = t.p[0] > t.p[1] ? 0 : 1; main = 'ADVANTAGE'; hl = a ? 'advB' : 'advA'; }
     }
     else main = 'Set ' + setNo;
     sub = 'Best of ' + t.bestOf + ' sets' + (t.noAd ? ' · No-Ad' : '');
@@ -575,7 +575,7 @@ function renderTennis() {
   if (top >= 2 || (top === 1 && !hl)) {
     const ids = [0, 1].filter(i => (rank[st[i]] || 0) === top);
     const label = top === 3 ? 'MATCH POINT' : top === 2 ? 'SET POINT' : 'GAME POINT';
-    main = ids.length === 2 ? label : label + ' ' + n[ids[0]];
+    main = label;
     hl = top === 3 ? 'mp' : top === 2 ? 'gp' : (ids.length === 2 ? 'deuce' : ids[0] ? 'advB' : 'advA');
   }
   if (t.winner === null && t.last) { main = 'SET ' + t.last.n + ' TO ' + n[t.last.w]; hl = 'win'; }
@@ -590,7 +590,7 @@ function renderTennis() {
     sv.textContent = t.server === i && t.winner === null ? '● SERVING' : 'serve';
     sv.classList.toggle('on', t.server === i && t.winner === null);
     $('team' + i).classList.toggle('mp', st[i] === 'match');
-    $('team' + i).classList.toggle('gp', st[i] === 'set' || (t.winner === null && !!t.last && t.last.w === i));
+    $('team' + i).classList.toggle('gp', st[i] === 'set' || st[i] === 'game' || (t.winner === null && !!t.last && t.last.w === i));
     $('team' + i).classList.toggle('won', t.winner === i);
     $('add' + i).disabled = t.winner !== null;
     $('add' + i).textContent = '+ POINT';
@@ -613,7 +613,7 @@ function renderPickle() {
     if (anyMp || anyGp) {
       const who = anyMp ? mpT : gpT;
       const label = anyMp ? 'MATCH POINT' : 'GAME POINT';
-      main = who[0] && who[1] ? label : label + ' ' + n[who[0] ? 0 : 1];
+      main = label;
       hl = anyMp ? 'mp' : 'gp';
       sub = (sideout ? call + ' \u00b7 ' : '') + sub;
     }
