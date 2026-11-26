@@ -155,6 +155,8 @@ button:disabled{opacity:.35;cursor:default}
 .rules li{margin:0 0 6px}
 .mh{margin:6px 0 10px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .lnk{color:var(--a);font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:0}
 @media (min-width:900px),(min-width:700px) and (orientation:landscape){.sheet.wide{width:min(820px,100%)}.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 32px;align-items:start}.cols > div > :first-child{margin-top:0}}
 .mc{background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
@@ -1197,7 +1199,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126052712';
+const APP_VERSION = '20261126052950';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
