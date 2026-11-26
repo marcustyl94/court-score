@@ -164,8 +164,30 @@ button:disabled{opacity:.35;cursor:default}
   background:linear-gradient(to bottom,transparent,var(--panel) 50%);color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.04em}
 .foot > .opt:last-child{margin-bottom:0}
 .sheet > .opt.ghost:last-child,.foot > .opt.ghost:last-child{background:var(--panel);color:var(--muted);font-weight:600;padding:14px}
-.foot > .opt.ghost:last-child{box-shadow:none}
+.sheet > .opt.ghost:last-child{box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 55%,transparent) inset,0 -10px 0 var(--panel),0 24px 0 var(--panel)}
+.foot > .opt.ghost:last-child{box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 55%,transparent) inset}
 .sheet > .opt.ghost:last-child:active,.foot > .opt.ghost:last-child:active{color:var(--text)}
+/* feedback: every button reacts when pressed; hover only with a mouse or trackpad; focus ring for the keyboard */
+.opt,.seg button,.px,.posb,.serve,.pc,.tbtn,.lnk{transition:background-color .12s,color .12s,transform .08s,filter .12s}
+.opt:active{transform:scale(.985)}
+.opt.ghost:active{background:var(--panel2)}
+.opt:not(.ghost):not(.primary):active{background:var(--line)}
+.seg button:not(.on):active{background:var(--panel2);color:var(--text)}
+.px:active{color:var(--text);transform:scale(.9)}
+.posb:active,.serve:active,.pc:active{filter:brightness(1.25);transform:scale(.96)}
+.lnk:active{opacity:.7}
+@media (hover:hover) and (pointer:fine){
+  .opt.ghost:hover{background:var(--panel2)}
+  .opt:not(.ghost):not(.primary):hover{background:color-mix(in srgb,var(--panel2) 70%,var(--line))}
+  .opt.primary:hover{filter:brightness(.94)}
+  .sheet > .opt.ghost:last-child:hover,.foot > .opt.ghost:last-child:hover{background:var(--panel2);color:var(--text)}
+  .seg button:not(.on):hover,.px:hover{color:var(--text)}
+  .tbtn:hover:not(:disabled){background:var(--panel2)}
+  .posb:hover,.serve:hover,.pc:hover{filter:brightness(1.15)}
+  .lnk:hover{opacity:.8}
+}
+button:focus-visible,.mc:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.opt,.seg button,.px,.posb,.serve,.pc,.tbtn{transition:none}.opt:active,.px:active,.posb:active,.serve:active,.pc:active{transform:none}}
 .row{margin:14px 0}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
@@ -1229,7 +1251,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126161607';
+const APP_VERSION = '20261126164029';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
