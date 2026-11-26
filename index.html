@@ -150,10 +150,15 @@ button:disabled{opacity:.35;cursor:default}
 .opt.big{min-height:72px;font-size:20px}
 .opt small{display:block;color:var(--muted);font-weight:500;margin-top:3px;font-size:14px}
 .opt.danger{color:#ffb3ba}
+/* three levels: the main action is solid, other options are outlined (.ghost), the closing button is plain text */
+.opt.primary{background:var(--text);color:var(--bg);text-align:center;font-size:18px}
+.opt.primary small{color:#3d4756}
+.opt.primary:active{filter:brightness(.88)}
 .opt.ghost{background:transparent;box-shadow:0 0 0 1px var(--line) inset;text-align:center}
 /* the last button (Done, Got it, Not now, Cancel, or Start on first visit) stays in view when a popup scrolls */
 .sheet > .opt:last-child{position:sticky;bottom:0;z-index:1;margin-bottom:0;box-shadow:0 -12px 16px 4px var(--panel)}
-.sheet > .opt.ghost:last-child{background:var(--panel);box-shadow:0 0 0 1px var(--line) inset,0 -12px 16px 4px var(--panel)}
+.sheet > .opt.ghost:last-child{background:var(--panel);color:var(--muted);font-weight:600;padding:14px;box-shadow:0 -12px 16px 4px var(--panel)}
+.sheet > .opt.ghost:last-child:active{color:var(--text)}
 .row{margin:14px 0}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
@@ -641,7 +646,7 @@ function openPlayers() {
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
     <div class="cols three"><div><div class="vs"><div class="lb">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
     <div class="s">${L.sit.length ? 'Sitting out: <b>' + esc(L.sit.map(i => p[i].n).join(', ')) + '</b>' : 'Everyone is playing'}</div></div>
-    ${r.recorded ? '<button class="opt" id="pNext">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
+    ${r.recorded ? '<button class="opt primary" id="pNext">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
     ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
     </div><div><div class="row" style="margin-top:10px">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
     ${active.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
@@ -718,7 +723,7 @@ function openPlayerSetup(fresh, opts) {
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
     <button class="opt ghost" id="pReset"${draftP.some((v, i) => v !== pName(i)) ? '' : ' hidden'}>Reset names</button>
     <div class="row"><label>Rotation</label>${mustRot ? '<p class="sub2" style="margin:0">On, because ' + (n - min) + (n - min === 1 ? ' player sits' : ' players sit') + ' out each match. Everyone plays about the same number of matches. For fixed teams, remove players (&times;) until ' + min + ' are left.</p>' : segHtml('pRot', [['off', 'Off'], ['on', 'On']], rot ? 'on' : 'off') + '<p class="sub2" style="margin:6px 0 0">' + (rot ? (single ? 'Opponents' : 'Partners') + ' change after every match.' : 'Fixed ' + (single ? 'players' : 'teams') + '. Pick who starts on the left and right court.') + '</p>'}</div>
-    <button class="opt" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
+    <button class="opt primary" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
     ${opts.cont ? '<button class="opt ghost" id="pCont">Continue last session</button>' : ''}
     ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}`);
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { const v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
@@ -1213,7 +1218,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126055239';
+const APP_VERSION = '20261126055750';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
