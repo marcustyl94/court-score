@@ -46,7 +46,8 @@ button:disabled{opacity:.35;cursor:default}
 .team.mp{box-shadow:0 0 0 5px var(--danger) inset;animation:mpPulse .9s ease-in-out infinite alternate}
 @keyframes mpPulse{from{box-shadow:0 0 0 3px var(--danger) inset}to{box-shadow:0 0 0 9px var(--danger) inset}}
 .hl.sd{background:var(--danger);color:#fff}
-.status .sub{height:30px;margin-top:2px;display:flex;justify-content:center;align-items:center;gap:6px;overflow:hidden;cursor:pointer}
+.status .sub{height:30px;margin-top:2px;display:flex;justify-content:center;align-items:center;gap:6px;overflow:hidden}
+.status .sub .pc.set,.status .sub .pc.rot,.status .sub [data-next],.status .sub .shuf{cursor:pointer}
 .pc{background:var(--panel);box-shadow:0 0 0 1px var(--line) inset;border-radius:999px;padding:4px 10px;
   font-size:clamp(11px,1.6vmin,14px);color:var(--muted);white-space:nowrap;font-weight:600}
 .pc b{color:var(--text);font-weight:800}
@@ -736,7 +737,7 @@ function render() {
     const rtxt = 'Match ' + (r.round + 1) + (r.lineup.sit.length ? ' \u00b7 Out ' + r.lineup.sit.map(i => p[i].n).join(', ') : '');
     const inHdr = !r.recorded && HDR.idle;
     if (inHdr) $('stMain').textContent = rtxt + (HDR.unit ? ' \u00b7 ' + HDR.unit : '');
-    $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot"><b>Next match &rsaquo;</b></span>' : (inHdr ? '' :
+    $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot" data-next="1"><b>Next match &rsaquo;</b></span>' : (inHdr ? '' :
       `<span class="pc set rot">Match <b>${r.round + 1}</b>${r.lineup.sit.length ? ' &middot; Out <b>' + esc(r.lineup.sit.map(i => p[i].n).join(', ')) + '</b>' : ''}</span>`) +
       (matchFresh() ? '<button class="pc shuf" id="shufBtn" aria-label="Shuffle players">Shuffle</button>' : ''));
   }
@@ -1027,7 +1028,12 @@ function openRules() {
 $('help').onclick = openRules;
 
 /* ---------- wire up ---------- */
-$('stSub').onclick = e => { if (e.target.closest('#shufBtn')) { rotShuffle(); return; } (S.rot && S.rot.recorded) ? openPlayers() : openSettings(); };
+$('stSub').onclick = e => {   // only the pills themselves respond, not the space around them
+  const pc = e.target.closest('.pc'); if (!pc) return;
+  if (pc.id === 'shufBtn') rotShuffle();
+  else if (pc.classList.contains('rot') || pc.dataset.next) openPlayers();
+  else if (pc.classList.contains('set')) openSettings();
+};
 $('undo').onclick = () => {
   if (!history.length) return;
   S = fixState(JSON.parse(history.pop())); save(); render(); toast('Undone');
@@ -1101,7 +1107,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126024905';
+const APP_VERSION = '20261126025155';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
