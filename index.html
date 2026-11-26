@@ -353,14 +353,16 @@ function pickMatchPoint(k, i) {
 }
 
 /* ---------- player rotation: doubles, 4 to 6 players, one court ---------- */
-function newRot(names, mode) {
-  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1, r: 0, f: 0 })), partner: {}, opp: {}, mu: {}, round: 0, lineup: null, next: null, recorded: false };
+/* rnd (optional) gives each player a random tie-break key, so equally fair choices come out in a different order each session */
+function newRot(names, mode, rnd) {
+  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map((n, i) => ({ n: n, g: 0, last: -1, r: 0, f: 0, k: rnd ? rnd() : i })), partner: {}, opp: {}, mu: {}, round: 0, lineup: null, next: null, recorded: false };
 }
 const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 /* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
 function rotPick(rot) {
   const P = rot.players;
-  const idx = P.map((_, i) => i).filter(i => !P[i].out).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
+  const tk = i => (P[i].k === undefined ? i : P[i].k);   // session tie-break key
+  const idx = P.map((_, i) => i).filter(i => !P[i].out).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || tk(a) - tk(b));
   if (rot.mode === 'singles') {
     /* fairness first: only players on the fewest matches (topped up from the next level if needed), then the pair that has met least, then the longest waiters */
     const minG = P[idx[0]].g, pool = idx.filter(i => P[i].g === minG);
@@ -371,7 +373,8 @@ function rotPick(rot) {
       if (pool.length < 2 && !(a === pool[0] || b === pool[0])) continue;
       const rest = pool.length >= 2 ? pool.filter(i => i !== a && i !== b) : [];
       const cost = ((rot.opp[pkey(a, b)] || 0) + pairCost(rest, rot)) * 1000 + P[a].last + P[b].last;
-      if (!best || cost < best.cost) best = { cost: cost, a: Math.min(a, b), b: Math.max(a, b) };
+      const tie = tk(a) + tk(b);
+      if (!best || cost < best.cost || (cost === best.cost && tie < best.tie)) best = { cost: cost, tie: tie, a: Math.min(a, b), b: Math.max(a, b) };
     }
     return rotOrient(rot, { teams: [[best.a], [best.b]], sit: idx.filter(i => i !== best.a && i !== best.b).sort((a, b) => a - b) });
   }
@@ -383,15 +386,16 @@ function rotPick(rot) {
       ((rot.partner[pkey(t[0][0], t[0][1])] || 0) + (rot.partner[pkey(t[1][0], t[1][1])] || 0)) * 30 +
       t[0].reduce((s, x) => s + t[1].reduce((s2, y) => s2 + (rot.opp[pkey(x, y)] || 0), 0), 0) * 3 +
       t.flat().reduce((s, i) => s + P[i].last, 0) * 0.1;
-    if (!best || cost < best.cost - 1e-9) best = { cost: cost, o: o };
+    if (!best || cost < best.cost - 1e-9 || (Math.abs(cost - best.cost) <= 1e-9 && tieLess(t, best.o.teams))) best = { cost: cost, o: o };
   });
   return rotOrient(rot, { teams: best.o.teams.map(t => t.slice()), sit: best.o.sit.slice() });
+  function tieLess(a, b) { const x = a.flat().map(tk), y = b.flat().map(tk); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; }
 }
 /* positions: in each pair the partner who has started on the right less often takes the right (listed first), and the side whose
    first server has served first less often serves first (listed first). Matchups are unchanged. */
 function rotOrient(rot, L) {
-  const P = rot.players, r = i => P[i].r || 0, f = i => P[i].f || 0;
-  L.teams.forEach(t => t.sort((a, b) => r(a) - r(b) || f(a) - f(b) || a - b));
+  const P = rot.players, r = i => P[i].r || 0, f = i => P[i].f || 0, tk = i => (P[i].k === undefined ? i : P[i].k);
+  L.teams.forEach(t => t.sort((a, b) => r(a) - r(b) || f(a) - f(b) || tk(a) - tk(b)));
   if (f(L.teams[1][0]) < f(L.teams[0][0])) L.teams.reverse();
   return L;
 }
@@ -545,7 +549,7 @@ function rotAfterPoint() {
   rotRecord(r); r.recorded = true; r.next = rotPick(r);
   return true;
 }
-function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
+function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode, Math.random); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
 let HDR = { idle: false, unit: '' };
 /* add or remove players mid-session: counts are kept, and the lineup is re-picked only if no point has been played */
@@ -607,7 +611,7 @@ function openPlayers() {
       const old = R.players.find(x => x.out && x.n.toLowerCase() === nm.toLowerCase());
       if (old) { old.out = false; old.g = Math.max(old.g, minG); return; }
       let n2 = nm, c = 1; while (R.players.some(x => !x.out && x.n.toLowerCase() === n2.toLowerCase())) n2 = nm + ' ' + (++c);
-      R.players.push({ n: n2, g: minG, last: R.round - 1 });
+      R.players.push({ n: n2, g: minG, last: R.round - 1, k: Math.random() });
     });
     toast(nm + ' added'); openPlayers();
   };
@@ -1143,7 +1147,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126033159';
+const APP_VERSION = '20261126034025';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
