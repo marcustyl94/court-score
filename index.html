@@ -842,12 +842,15 @@ function renderPickle() {
       main = label;
       hl = anyMp ? 'mp' : 'gp';
       sub = (sideout ? call + ' \u00b7 ' : '') + sub;
+    } else if (k.winBy2 && Math.min(k.p[0], k.p[1]) >= k.target - 1 && Math.abs(k.p[0] - k.p[1]) <= 1) {
+      // overtime: nobody can win on the next point and a 2-point lead is needed (pickleball's version of deuce)
+      main = 'WIN BY 2' + (k.cap > k.target ? ' \u00b7 CAP ' + k.cap : ''); hl = 'deuce';
     }
   }
   if (k.winner === null && k.last) { main = 'GAME ' + k.last.n + ' TO ' + n[k.last.w]; hl = 'win'; }
   HDR = { idle: k.winner === null && !hl && !sideout, unit: k.bestOf > 1 ? 'Game ' + (k.games.length + 1) : '' };
   const kShow = k.winner !== null || k.p[0] + k.p[1] === 0;
-  $('stMain').textContent = main; $('stSub').innerHTML = (k.winner === null && k.last ? `<span class="pc hot"><b>${k.last.score[k.last.w]} - ${k.last.score[1 - k.last.w]}</b></span>` : '') + (k.winner === null && sideout && (gpT[0] || gpT[1]) ? `<span class="pc hot"><b>${call}</b></span>` : '') +
+  $('stMain').textContent = main; $('stSub').innerHTML = (k.winner === null && k.last ? `<span class="pc hot"><b>${k.last.score[k.last.w]} - ${k.last.score[1 - k.last.w]}</b></span>` : '') + (k.winner === null && sideout && (gpT[0] || gpT[1] || hl === 'deuce') ? `<span class="pc hot"><b>${call}</b></span>` : '') +
       (!kShow ? '' : `<span class="pc set">${k.winner === null && (hl || sideout) && k.bestOf > 1 ? 'Game <b>' + (k.games.length + 1) + '</b> &middot; ' : ''}${k.winBy2 ? 'To <b>' + k.target + '</b> &middot; Win by <b>2</b>' + (k.cap > k.target ? ' &middot; Cap <b>' + k.cap + '</b>' : '') : 'First to <b>' + k.target + '</b>'}${k.bestOf > 1 ? ' &middot; Best of <b>' + k.bestOf + '</b>' : ''}${k.serveMode !== 'off' ? ' &middot; <b>' + (sideout ? (k.singles ? 'Side-out singles' : 'Side-out') : 'Rally') + '</b>' : ''}</span>`);
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
@@ -1140,7 +1143,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126032008';
+const APP_VERSION = '20261126033053';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
