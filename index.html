@@ -597,7 +597,12 @@ function openPlayerSetup(fresh, opts) {
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('input', () => { $('pErr').textContent = ''; }));
   const again = () => openPlayerSetup(false, opts);
-  document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => { sync(); draftMode = b.dataset.v; draftSide = null; again(); });
+  document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => {
+    sync(); draftMode = b.dataset.v; draftSide = null;
+    const def = draftMode === 'singles' ? 2 : 4;   // back to the format's usual count, keeping anyone already named
+    while (draftP.length > def && draftP[draftP.length - 1].trim() === pName(draftP.length - 1)) draftP.pop();
+    again();
+  });
   document.querySelectorAll('#pRot button').forEach(b => b.onclick = () => { sync(); draftRot = b.dataset.v === 'on'; again(); });
   draftP.forEach((_, i) => document.querySelectorAll('#side' + i + ' button').forEach(b => b.onclick = () => {
     sync(); draftSide[i] = b.dataset.v; $('pErr').textContent = '';
@@ -998,7 +1003,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126015022';
+const APP_VERSION = '20261126015140';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
