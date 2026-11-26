@@ -156,9 +156,12 @@ button:disabled{opacity:.35;cursor:default}
 .opt.primary:active{filter:brightness(.88)}
 .opt.ghost{background:transparent;box-shadow:0 0 0 1px var(--line) inset;text-align:center}
 /* the last button (Done, Got it, Not now, Cancel, or Start on first visit) stays in view when a popup scrolls */
-.sheet > .opt:last-child{position:sticky;bottom:0;z-index:1;margin-bottom:0;box-shadow:0 -12px 16px 4px var(--panel)}
-.sheet > .opt.ghost:last-child{background:var(--panel);color:var(--muted);font-weight:600;padding:14px;box-shadow:0 -12px 16px 4px var(--panel)}
-.sheet > .opt.ghost:last-child:active{color:var(--text)}
+.sheet > .opt:last-child,.sheet > .foot:last-child{position:sticky;bottom:0;z-index:1;margin-bottom:0;box-shadow:0 -10px 0 var(--panel),0 24px 0 var(--panel)}
+.sheet > .foot:last-child{background:var(--panel)}
+.foot > .opt:last-child{margin-bottom:0}
+.sheet > .opt.ghost:last-child,.foot > .opt.ghost:last-child{background:var(--panel);color:var(--muted);font-weight:600;padding:14px}
+.foot > .opt.ghost:last-child{box-shadow:none}
+.sheet > .opt.ghost:last-child:active,.foot > .opt.ghost:last-child:active{color:var(--text)}
 .row{margin:14px 0}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
@@ -723,9 +726,9 @@ function openPlayerSetup(fresh, opts) {
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
     <button class="opt ghost" id="pReset"${draftP.some((v, i) => v !== pName(i)) ? '' : ' hidden'}>Reset names</button>
     <div class="row"><label>Rotation</label>${mustRot ? '<p class="sub2" style="margin:0">On, because ' + (n - min) + (n - min === 1 ? ' player sits' : ' players sit') + ' out each match. Everyone plays about the same number of matches. For fixed teams, remove players (&times;) until ' + min + ' are left.</p>' : segHtml('pRot', [['off', 'Off'], ['on', 'On']], rot ? 'on' : 'off') + '<p class="sub2" style="margin:6px 0 0">' + (rot ? (single ? 'Opponents' : 'Partners') + ' change after every match.' : 'Fixed ' + (single ? 'players' : 'teams') + '. Pick who starts on the left and right court.') + '</p>'}</div>
-    <button class="opt primary" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
+    <div class="foot"><button class="opt primary" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
     ${opts.cont ? '<button class="opt ghost" id="pCont">Continue last session</button>' : ''}
-    ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}`);
+    ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}</div>`);
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { const v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('input', () => { $('pErr').textContent = ''; sync(); $('pReset').hidden = !draftP.some((v, i) => v !== pName(i)); }));
   const again = () => openPlayerSetup(false, opts);
@@ -1218,7 +1221,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126055750';
+const APP_VERSION = '20261126160931';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
