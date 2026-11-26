@@ -105,6 +105,8 @@ button:disabled{opacity:.35;cursor:default}
   font-size:clamp(20px,8cqh,44px);letter-spacing:.02em}
 .add:active:not(:disabled){filter:brightness(.85);transform:scale(.985)}
 .add.alt{background:var(--panel2);color:var(--c);box-shadow:0 0 0 2px var(--c) inset}
+.posb{max-width:100%;padding:6px 12px;border-radius:999px;background:var(--panel2);color:var(--muted);font-weight:600;font-size:clamp(12px,3.6cqh,18px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 0 0 1px var(--line) inset}
+.posb b{color:var(--text)}
 .badge{position:absolute;right:14px;top:50%;transform:translateY(-50%) rotate(8deg);background:var(--gold);color:#1a1300;
   font-weight:900;letter-spacing:.08em;padding:8px 14px;border-radius:10px;font-size:clamp(14px,5cqh,26px);display:none}
 .team.won .badge{display:block}
@@ -503,6 +505,7 @@ function buildBoard() {
     $('name' + i).addEventListener('click', () => openPlayers());   // names are edited in the Players popup
     $('serve' + i).addEventListener('click', () => setServer(i));
     $('add' + i).addEventListener('click', () => addPoint(i));
+    $('chips' + i).addEventListener('click', e => { if (e.target.closest('.posb')) swapPos(i); });
   });
 }
 
@@ -613,6 +616,8 @@ function openPlayers() {
   const p = r.players, L = r.recorded ? r.next : r.lineup;
   const single = r.mode === 'singles';
   const nm = t => t.map(i => esc(p[i].n)).join(' &amp; ');
+  const posOn = S.sport === 'pickle' && cur().serveMode !== 'off' && (r.recorded || matchFresh()), fs = r.recorded ? 0 : cur().srv;
+  const posl = j => posOn && L.teams[j].length === 2 ? `<div class="v">${esc(p[L.teams[j][0]].n)} starts right${j === fs ? ' &middot; serves first' : ''}</div>` : '';
   const playing = L.teams.flat();
   const active = p.map((_, i) => i).filter(i => !p[i].out), minP = single ? 2 : 4, fresh = r.recorded || matchFresh();
   const onCourt = r.recorded ? [] : r.lineup.teams.flat();
@@ -623,7 +628,7 @@ function openPlayers() {
   openSheet(`
     <div class="hrow"><h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>${r.recorded ? '' : '<button class="tbtn" id="pNewTop">New session</button>'}</div>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
-    <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
+    <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     ${r.recorded ? '<button class="opt" id="pNext">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
     ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
@@ -757,6 +762,27 @@ function teamMembers(i) {
   }
   return null;
 }
+/* starting positions in pickleball doubles: shown at 0-0 of each game so players line up where the app expects; tap to swap */
+function posShown(k, i) {
+  const m = S.sport === 'pickle' && k.serveMode !== 'off' && !k.singles && k.winner === null && k.p[0] + k.p[1] === 0 ? teamMembers(i) : null;
+  return m && m.length === 2 ? m : null;
+}
+function posHtml(k, i) {
+  const m = posShown(k, i); if (!m) return '';
+  const sh = n => esc(n.length > 8 ? n.slice(0, 7) + '\u2026' : n);
+  return `<button class="posb" aria-label="${esc(m[k.pos[i]])} starts right. Tap to swap partners."><b>${sh(m[k.pos[i]])}</b> right &middot; <b>${sh(m[1 - k.pos[i]])}</b> left &#8644;</button>`;
+}
+function swapPos(i) {
+  const k = cur();
+  if (!posShown(k, i)) return;
+  act(() => {
+    // rotation, before the match's first point: reorder the pair so the right partner is listed first and the right/left counts stay true
+    if (S.rot && S.rot.lineup && !S.rot.recorded && matchFresh()) { S.rot.lineup.teams[i].reverse(); rotApply(); }
+    else { k.pos[i] = 1 - k.pos[i]; if (k.rs) k.rs[i] = k.pos[i]; }
+    if (k.serveMode === 'sideout' && k.srv === i) k.sp = k.pos[i];
+  });
+  toast('Partners swapped');
+}
 function setServer(i) {
   const k = cur();
   if (k.winner !== null) return;
@@ -767,6 +793,7 @@ function setServer(i) {
     if (k.serveMode === 'off') return;
     if (k.srv === i) {   // tapping the serving team again: the partners are the other way round
       if (k.singles || !teamMembers(i)) return;
+      if (k.p[0] + k.p[1] === 0) { swapPos(i); return; }
       act(() => { k.pos[i] = 1 - k.pos[i]; if (k.serveMode === 'sideout') k.sp = 1 - k.sp; });
       toast('Partners swapped'); return;
     }
@@ -897,7 +924,7 @@ function renderPickle() {
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
     const hist = k.bestOf === 1 ? '' : k.games.map(g => `<span class="setbox ${g[i] > g[1 - i] ? 'w' : ''}">${g[i]}</span>`).join('');
-    $('chips' + i).innerHTML = (k.bestOf > 1 ? `<span class="chip"><b>${k.gw[i]}</b>games</span>` : '') + hist;
+    $('chips' + i).innerHTML = (k.bestOf > 1 ? `<span class="chip"><b>${k.gw[i]}</b>games</span>` : '') + (posShown(k, i) ? posHtml(k, i) : hist);
     const sv = $('serve' + i);
     const tracking = k.serveMode !== 'off' && k.winner === null;
     sv.style.visibility = tracking ? 'visible' : 'hidden';
@@ -1184,7 +1211,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126050500';
+const APP_VERSION = '20261126051605';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
