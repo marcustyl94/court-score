@@ -64,6 +64,9 @@ button:disabled{opacity:.35;cursor:default}
 .bar{position:relative}
 .mpop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
 .mpop.show{display:block}
+.mpop hr{border:0;height:1px;background:var(--line);margin:4px 8px}
+.steps{margin:0 0 12px;padding-left:20px;line-height:1.5}
+.steps li{margin:0 0 8px}
 .mpop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:0 14px;min-height:46px;border-radius:10px;font-weight:600;font-size:16px}
 .mpop button:active{background:var(--panel)}
 .mpop button.on{color:var(--text);background:var(--panel)}
@@ -1068,10 +1071,26 @@ function showPop(html, side, btn) {
 $('modeChip').onclick = () => showPop(
   Object.keys(SPORT_NAMES).map(k => '<button role="menuitem" data-sport="' + k + '"' + (S.sport === k ? ' class="on"' : '') + '>' + SPORT_NAMES[k] + (S.sport === k ? '<span class="ck">&#10003;</span>' : '') + '</button>').join(''),
   'left', $('modeChip'));
-$('more').onclick = () => showPop(
-  (S.sport === 'custom' ? '' : '<button role="menuitem" data-act="rules">Rules</button>') +
-  '<button role="menuitem" data-act="swap">Swap sides</button><button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="newsession">New session</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
-  'right', $('more'));
+const isInstalled = () => { try { return navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; } catch (e) { return true; } };
+/* ⋯ menu: session items, match items, then Reset on its own; Players only while rotating; Reset only when there is something to reset */
+$('more').onclick = () => {
+  const mi = (act, label, cls) => `<button role="menuitem" data-act="${act}"${cls ? ' class="' + cls + '"' : ''}>${label}</button>`;
+  const session = (S.rot ? mi('players', 'Players') : '') + mi('newsession', 'New session');
+  const match = mi('settings', 'Settings') + (S.sport === 'custom' ? '' : mi('rules', 'Rules')) + mi('swap', 'Swap sides');
+  const reset = cur().winner === null && matchFresh() ? '' : mi('reset', 'Reset', 'dng');
+  const install = !isInstalled() && location.protocol.startsWith('http') ? mi('install', 'Add to Home Screen') : '';
+  showPop([session, match, install, reset].filter(Boolean).join('<hr>'), 'right', $('more'));
+};
+function openInstall() {
+  openSheet(`
+    <h2>Add to Home Screen</h2>
+    <p>Opens full screen like an app, updates itself and works without a connection.</p>
+    <ol class="steps"><li><b>iPhone or iPad (Safari):</b> tap Share (the square with an arrow), then Add to Home Screen, then Add.</li>
+    <li><b>Android (Chrome):</b> tap the ⋮ menu, then Install app or Add to Home screen.</li></ol>
+    <p class="sub2">Scores and players saved here in the browser don't move to the Home Screen app. Start a new session there.</p>
+    <button class="opt ghost" id="iDone">Got it</button>`);
+  $('iDone').onclick = closeSheet;
+}
 pop.onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   closePop();
@@ -1079,6 +1098,7 @@ pop.onclick = e => {
   else if (b.dataset.act === 'rules') openRules();
   else if (b.dataset.act === 'swap') swapSides();
   else if (b.dataset.act === 'players') openPlayers();
+  else if (b.dataset.act === 'install') openInstall();
   else if (b.dataset.act === 'newsession') openPlayerSetup(true, { note: 'New group? Tap a name and type over it, or reset names to Player 1, 2 ... Nothing changes until you tap Start.' });
   else if (b.dataset.act === 'settings') openSettings();
   else if (b.dataset.act === 'reset') resetStep1();
@@ -1120,7 +1140,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126030814';
+const APP_VERSION = '20261126032008';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
