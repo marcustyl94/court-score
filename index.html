@@ -30,7 +30,9 @@ button:disabled{opacity:.35;cursor:default}
 .seg{display:flex;background:var(--panel);border-radius:12px;padding:3px;gap:2px}
 .seg button{padding:9px 14px;border-radius:10px;font-weight:600;font-size:15px;color:var(--muted);min-height:40px}
 .seg button.on{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--line) inset}
-.status{--H:calc(clamp(22px,4.4vmin,36px) + 16px);flex:1;text-align:center;min-width:0;overflow:hidden}
+.status{--H:calc(clamp(22px,4.4vmin,36px) + 16px);flex:1;text-align:center;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;align-items:center;height:calc(var(--H) + 32px)}
+.status .sub:empty{display:none}
+.status .sub{width:100%}
 .status .main{display:inline-block;max-width:100%;height:var(--H);line-height:var(--H);vertical-align:top;font-weight:700;font-size:clamp(14px,2.2vmin,22px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status .main.hl{padding:0 22px;border-radius:999px;font-weight:800;color:#0b0f14;
   font-size:clamp(22px,4.4vmin,36px);letter-spacing:.02em}
@@ -957,7 +959,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126013546';
+const APP_VERSION = '20261126013919';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
