@@ -158,7 +158,7 @@ button:disabled{opacity:.35;cursor:default}
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .lnk{color:var(--a);font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:0}
-@media (min-width:900px),(min-width:700px) and (orientation:landscape){.sheet.wide{width:min(820px,100%)}.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 32px;align-items:start}.cols > div > :first-child{margin-top:0}}
+@media (min-width:900px),(min-width:700px) and (orientation:landscape){.sheet.wide{width:min(820px,100%)}.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}.cols > div > :first-child{margin-top:0 !important}.cols.three{grid-template-areas:'a b' 'c b';grid-template-rows:auto 1fr}.cols.three > :nth-child(1){grid-area:a}.cols.three > :nth-child(2){grid-area:b}.cols.three > :nth-child(3){grid-area:c}}
 .mc{background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
 .mc.on{box-shadow:0 0 0 2px var(--a) inset}
 .mc.pick{cursor:pointer}
@@ -632,16 +632,16 @@ function openPlayers() {
   openSheet(`
     <div class="hrow"><h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>${r.recorded ? '' : '<button class="tbtn" id="pNewTop">New session</button>'}</div>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
-    <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
+    <div class="cols three"><div><div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     ${r.recorded ? '<button class="opt" id="pNext">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
     ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
-    <div class="row" style="margin-top:10px">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
+    </div><div><div class="row" style="margin-top:10px">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
     ${active.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
     ${!r.recorded && (L.teams[0].length === 1) !== single ? '<p class="sub2">' + (single ? 'Singles' : 'Doubles') + ' from the next match. The current match carries on.</p>' : ''}
     ${rows}
-    <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
-    <button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button>`);
+    </div><div><button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
+    <button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button></div></div>`, true);
   bindRename(document.querySelectorAll('[data-ren]'), (el, v) => {
     const i = +el.dataset.ren;
     act(() => { const R = S.rot; R.players[i].n = v; rotApply(); if (S.roster) S.roster.names = R.players.filter(x => !x.out).map(x => x.n); });
@@ -1199,7 +1199,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126052950';
+const APP_VERSION = '20261126053217';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
