@@ -958,7 +958,13 @@ function renderPickle() {
 
 /* ---------- sheets ---------- */
 let holdTimer = null;
-function openSheet(html, wide) { $('sheet').innerHTML = html; $('sheet').classList.toggle('wide', wide === true); $('sheet').classList.toggle('mid', wide === 'mid'); $('scrim').classList.add('show'); }
+/* a popup opens at the top; when the same popup redraws itself (Settings after each tap, renaming in Players) it keeps its place */
+function openSheet(html, wide) {
+  const sh = $('sheet'), was = $('scrim').classList.contains('show') ? (sh.querySelector('h2') || {}).textContent : null;
+  sh.innerHTML = html;
+  sh.classList.toggle('wide', wide === true); sh.classList.toggle('mid', wide === 'mid'); $('scrim').classList.add('show');
+  if (was === null || was !== (sh.querySelector('h2') || {}).textContent) sh.scrollTop = 0;   // after showing: a hidden popup ignores scrollTop
+}
 function closeSheet() { clearTimeout(holdTimer); $('scrim').classList.remove('show'); }
 $('scrim').addEventListener('click', e => { if (e.target === $('scrim') && !sheetLock) closeSheet(); });
 
@@ -1207,7 +1213,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126054850';
+const APP_VERSION = '20261126055239';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
