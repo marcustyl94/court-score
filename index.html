@@ -158,7 +158,7 @@ button:disabled{opacity:.35;cursor:default}
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .lnk{color:var(--a);font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:0}
-@media (min-width:900px),(min-width:700px) and (orientation:landscape){.sheet.wide{width:min(820px,100%)}.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}.cols > div > :first-child{margin-top:0 !important}.cols.three{grid-template-areas:'a b' 'c b';grid-template-rows:auto 1fr}.cols.three > :nth-child(1){grid-area:a}.cols.three > :nth-child(2){grid-area:b}.cols.three > :nth-child(3){grid-area:c}}
+@media (min-width:900px),(min-width:700px) and (orientation:landscape){.sheet.wide{width:min(820px,100%)}.sheet.mid{width:min(560px,100%)}.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}.cols > div > :first-child{margin-top:0 !important}.cols.three{grid-template-areas:'a b' 'c b';grid-template-rows:auto 1fr}.cols.three > :nth-child(1){grid-area:a}.cols.three > :nth-child(2){grid-area:b}.cols.three > :nth-child(3){grid-area:c}}
 .mc{background:var(--panel2);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:0 0 0 1px var(--line) inset}
 .mc.on{box-shadow:0 0 0 2px var(--a) inset}
 .mc.pick{cursor:pointer}
@@ -640,8 +640,8 @@ function openPlayers() {
     ${active.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
     ${!r.recorded && (L.teams[0].length === 1) !== single ? '<p class="sub2">' + (single ? 'Singles' : 'Doubles') + ' from the next match. The current match carries on.</p>' : ''}
     ${rows}
-    </div><div><button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
-    <button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button></div></div>`, true);
+    </div><div>${r.recorded ? '<button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button>' : ''}</div></div>
+    <button class="opt ghost" id="pDone" style="margin:10px 0 0">${r.recorded ? 'Not now' : 'Done'}</button>`, true);
   bindRename(document.querySelectorAll('[data-ren]'), (el, v) => {
     const i = +el.dataset.ren;
     act(() => { const R = S.rot; R.players[i].n = v; rotApply(); if (S.roster) S.roster.names = R.players.filter(x => !x.out).map(x => x.n); });
@@ -678,7 +678,7 @@ function openPlayers() {
     };
   });
   $('pDone').onclick = closeSheet;
-  $('pNew').onclick = () => openPlayerSetup(true);
+  if ($('pNew')) $('pNew').onclick = () => openPlayerSetup(true);
   if ($('pNewTop')) $('pNewTop').onclick = () => openPlayerSetup(true, { note: 'New group? Tap a name to type over it. Nothing changes until you tap Start.' });
 
 }
@@ -950,7 +950,7 @@ function renderPickle() {
 
 /* ---------- sheets ---------- */
 let holdTimer = null;
-function openSheet(html, wide) { $('sheet').innerHTML = html; $('sheet').classList.toggle('wide', !!wide); $('scrim').classList.add('show'); }
+function openSheet(html, wide) { $('sheet').innerHTML = html; $('sheet').classList.toggle('wide', wide === true); $('sheet').classList.toggle('mid', wide === 'mid'); $('scrim').classList.add('show'); }
 function closeSheet() { clearTimeout(holdTimer); $('scrim').classList.remove('show'); }
 $('scrim').addEventListener('click', e => { if (e.target === $('scrim') && !sheetLock) closeSheet(); });
 
@@ -1092,10 +1092,10 @@ function openRules() {
       : ['Serve tracking is off, so the app counts points only.'];
     note = '<p class="sub2">Serve tracking: <b>' + (mode === 'rally' ? 'Rally' : mode === 'sideout' ? 'Side-out' + (k.singles ? ' singles' : '') : 'Off') + '</b>. <button class="lnk" id="hSet">Change in Settings</button></p>';
   }
-  openSheet('<h2>' + title + '</h2><div class="cols"><div><p class="sub2">Quick summary. Local rules may differ.</p><ul class="rules">' +
-    items.map(i => '<li>' + i + '</li>').join('') + '</ul></div><div>' +
+  openSheet('<h2>' + title + '</h2><p class="sub2">Quick summary. Local rules may differ.</p><ul class="rules">' +
+    items.map(i => '<li>' + i + '</li>').join('') + '</ul>' +
     (serving.length ? '<h3 class="mh">Serving</h3><ul class="rules">' + serving.map(i => '<li>' + i + '</li>').join('') + '</ul>' : '') + (note ? (note.charAt(0) === '<' ? note : '<p class="sub2">' + note + '</p>') : '') +
-    '</div></div><button class="opt ghost" id="hDone">Got it</button>', true);
+    '<button class="opt ghost" id="hDone">Got it</button>', 'mid');
   if ($('hSet')) $('hSet').onclick = openSettings;
   $('hDone').onclick = closeSheet;
 }
@@ -1199,7 +1199,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126053217';
+const APP_VERSION = '20261126053956';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
