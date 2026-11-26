@@ -241,7 +241,7 @@ function newPickle(o) {
   o = o || {};
   return { target: o.target || 11, winBy2: o.winBy2 !== false, cap: o.cap || 0, bestOf: o.bestOf || 1,
            serveMode: o.serveMode || 'off', singles: !!o.singles, games: [], gw: [0, 0], p: [0, 0],
-           startSrv: 0, srv: 0, num: 2, winner: null, pos: [0, 0], sp: 0 };
+           startSrv: 0, srv: 0, num: 2, winner: null, pos: [0, 0], sp: 0, rs: [0, 0], ms: 0 };
 }
 function newState() {
   return { sport: 'tennis', swap: false, rot: null, roster: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
@@ -312,7 +312,7 @@ function pickPoint(k, w) {
     k.games.push([k.p[0], k.p[1]]);
     k.gw[w]++;
     if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;   // keep the final score on screen
-    else { k.p = [0, 0]; k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; k.pos = [0, 0]; k.sp = 0; k.last = { w: w, n: k.games.length, score: k.games[k.games.length - 1].slice() }; }
+    else { k.p = [0, 0]; k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; k.rs = [1 - (k.rs || [0, 0])[0], 1 - (k.rs || [0, 0])[1]]; k.pos = k.rs.slice(); k.sp = k.pos[k.srv]; k.last = { w: w, n: k.games.length, score: k.games[k.games.length - 1].slice() }; }
   }
   return true;
 }
@@ -347,7 +347,7 @@ function pickMatchPoint(k, i) {
 
 /* ---------- player rotation: doubles, 4 to 6 players, one court ---------- */
 function newRot(names, mode) {
-  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, mu: {}, round: 0, lineup: null, next: null, recorded: false };
+  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1, r: 0, f: 0 })), partner: {}, opp: {}, mu: {}, round: 0, lineup: null, next: null, recorded: false };
 }
 const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 /* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
@@ -366,7 +366,7 @@ function rotPick(rot) {
       const cost = ((rot.opp[pkey(a, b)] || 0) + pairCost(rest, rot)) * 1000 + P[a].last + P[b].last;
       if (!best || cost < best.cost) best = { cost: cost, a: Math.min(a, b), b: Math.max(a, b) };
     }
-    return { teams: [[best.a], [best.b]], sit: idx.filter(i => i !== best.a && i !== best.b).sort((a, b) => a - b) };
+    return rotOrient(rot, { teams: [[best.a], [best.b]], sit: idx.filter(i => i !== best.a && i !== best.b).sort((a, b) => a - b) });
   }
   /* doubles: any fair group of four (keeps match counts within 1), then the matchup, partners and opponents seen least; waiting longest only breaks ties */
   let best = null;
@@ -378,7 +378,15 @@ function rotPick(rot) {
       t.flat().reduce((s, i) => s + P[i].last, 0) * 0.1;
     if (!best || cost < best.cost - 1e-9) best = { cost: cost, o: o };
   });
-  return { teams: best.o.teams, sit: best.o.sit };
+  return rotOrient(rot, { teams: best.o.teams.map(t => t.slice()), sit: best.o.sit.slice() });
+}
+/* positions: in each pair the partner who has started on the right less often takes the right (listed first), and the side whose
+   first server has served first less often serves first (listed first). Matchups are unchanged. */
+function rotOrient(rot, L) {
+  const P = rot.players, r = i => P[i].r || 0, f = i => P[i].f || 0;
+  L.teams.forEach(t => t.sort((a, b) => r(a) - r(b) || f(a) - f(b) || a - b));
+  if (f(L.teams[1][0]) < f(L.teams[0][0])) L.teams.reverse();
+  return L;
 }
 const mkey = t => t.map(x => x.slice().sort((a, b) => a - b).join('+')).sort().join('v');
 /* every lineup that keeps match counts within 1: the players chosen must be the ones on the fewest matches (any of those tied at the edge) */
@@ -406,7 +414,7 @@ function rotShufflePick(rot, current, rnd) {
   const lo = Math.min(...pool.map(o => rot.mu[mkey(o.teams)] || 0));
   pool = pool.filter(o => (rot.mu[mkey(o.teams)] || 0) === lo);
   const o = pool[Math.floor(rnd() * pool.length)];
-  return { teams: o.teams.map(t => t.slice()), sit: o.sit.slice() };
+  return rotOrient(rot, { teams: o.teams.map(t => t.slice()), sit: o.sit.slice() });
 }
 /* fewest repeat meetings when the rest of this round's players are paired up (one may be left over) */
 function pairCost(list, rot) {
@@ -423,6 +431,8 @@ function rotRecord(rot) {
   if (!rot.mu) rot.mu = {};
   const mk = mkey(L.teams); rot.mu[mk] = (rot.mu[mk] || 0) + 1;
   L.teams.forEach(t => t.forEach(i => { rot.players[i].g++; rot.players[i].last = rot.round; }));
+  if (L.teams[0].length === 2) L.teams.forEach(t => { const x = rot.players[t[0]]; x.r = (x.r || 0) + 1; });   // started on the right
+  { const x = rot.players[L.teams[0][0]]; x.f = (x.f || 0) + 1; }   // served the first point
   rot.round++;
 }
 /*ENDLOGIC*/
@@ -442,7 +452,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (st.rot && !st.rot.mu) st.rot.mu = {}; if (!st.custom) st.custom = newPickle({ target: 21 }); ['pickle', 'custom'].forEach(x => { if (st[x] && !('cap' in st[x])) st[x].cap = 0; if (st[x] && !st[x].pos) { st[x].pos = [0, 0]; st[x].sp = 0; } }); return st; }
+function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (st.rot && !st.rot.mu) st.rot.mu = {}; if (!st.custom) st.custom = newPickle({ target: 21 }); ['pickle', 'custom'].forEach(x => { if (st[x] && !('cap' in st[x])) st[x].cap = 0; if (st[x] && !st[x].pos) { st[x].pos = [0, 0]; st[x].sp = 0; } if (st[x] && !st[x].rs) { st[x].rs = [0, 0]; st[x].ms = st[x].startSrv || 0; } }); return st; }
 function save() {
   S.at = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
@@ -509,7 +519,17 @@ function matchFresh() {
   if (c.winner !== null || c.p[0] + c.p[1] > 0) return false;
   return S.sport === 'tennis' ? c.sets.length === 0 && c.g[0] + c.g[1] === 0 : c.games.length === 0;
 }
-function freshMatch() { if (S.sport === 'tennis') S.tennis = newTennis(S.tennis); else S[S.sport] = newPickle(S[S.sport]); }
+function freshMatch() {
+  if (S.sport === 'tennis') { S.tennis = newTennis(S.tennis); return; }
+  const prev = S[S.sport], k = newPickle(prev);
+  if (!S.rot && prev && prev.rs && (prev.games.length || prev.p[0] + prev.p[1])) {
+    // fixed teams: the first server cycles through all four players over four matches (A1, B1, A2, B2)
+    const mc = (prev.mc || 0) + 1, side = Math.floor(mc / 2) % 2;
+    k.mc = mc; k.rs = [side, side]; k.pos = k.rs.slice();
+    k.startSrv = k.srv = k.ms = mc % 2; k.sp = k.pos[k.srv];
+  }
+  S[S.sport] = k;
+}
 function rotApply() { const r = S.rot, p = r.players; S.names = r.lineup.teams.map(t => t.map(i => p[i].n).join(' & ')); }
 function rotAfterPoint() {
   const r = S.rot;
@@ -586,7 +606,7 @@ function openPlayers() {
   if ($('pAddP')) { $('pAddP').onclick = addP; $('pNewName').onkeydown = e => { if (e.key === 'Enter') addP(); }; }
   if ($('pShuf')) $('pShuf').onclick = () => { if (rotShuffle()) openPlayers(); };
   if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
-  if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }; rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
+  if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = rotOrient(r, { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }); rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
   document.querySelectorAll('#pRMode button').forEach(b => {
     if (b.dataset.v === 'doubles' && active.length < 4) b.disabled = true;
     b.onclick = () => {
@@ -700,7 +720,7 @@ function setServer(i) {
       act(() => { k.pos[i] = 1 - k.pos[i]; if (k.serveMode === 'sideout') k.sp = 1 - k.sp; });
       toast('Partners swapped'); return;
     }
-    act(() => { k.srv = i; k.num = k.serveMode === 'sideout' ? 2 : k.num; k.sp = k.pos[i]; if (k.p[0] + k.p[1] === 0) k.startSrv = i; });
+    act(() => { k.srv = i; k.num = k.serveMode === 'sideout' ? 2 : k.num; k.sp = k.pos[i]; if (k.p[0] + k.p[1] === 0) { k.startSrv = i; if (!k.games.length) k.ms = i; } });
   }
 }
 
@@ -896,8 +916,7 @@ function doReset(scope) {
     if (scope === 'game') {
       const k = cur(); k.p = [0, 0];
       if (S.sport === 'pickle') { k.num = 2; }
-    } else if (S.sport === 'tennis') S.tennis = newTennis(S.tennis);
-    else S[S.sport] = newPickle(S[S.sport]);
+    } else freshMatch();
   });
 }
 
@@ -1082,7 +1101,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126023751';
+const APP_VERSION = '20261126024905';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
