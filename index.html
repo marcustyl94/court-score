@@ -85,8 +85,8 @@ button:disabled{opacity:.35;cursor:default}
   width:100%;min-width:0;outline:none;padding:4px 0;-webkit-user-select:text;user-select:text;text-overflow:ellipsis}
 .name:focus{border-bottom:2px solid var(--c)}
 .serve{flex:none;font-size:clamp(11px,3.4cqh,16px);font-weight:700;letter-spacing:.06em;color:var(--muted);
-  padding:6px 10px;border-radius:999px;background:var(--panel2);white-space:nowrap}
-.serve.on{background:var(--c);color:#0b0f14}
+  padding:6px 10px;border-radius:999px;background:var(--panel2);white-space:nowrap;max-width:44%;overflow:hidden;text-overflow:ellipsis}
+.serve.on{background:var(--c);color:#0b0f14;text-transform:uppercase}
 .score{display:flex;align-items:center;justify-content:center;font-weight:800;line-height:1;
   font-size:min(46cqw,40cqh);font-variant-numeric:tabular-nums;letter-spacing:-.02em;min-height:0}
 .score.pop{animation:pop .22s ease-out}
@@ -241,7 +241,7 @@ function newPickle(o) {
   o = o || {};
   return { target: o.target || 11, winBy2: o.winBy2 !== false, cap: o.cap || 0, bestOf: o.bestOf || 1,
            serveMode: o.serveMode || 'off', singles: !!o.singles, games: [], gw: [0, 0], p: [0, 0],
-           startSrv: 0, srv: 0, num: 2, winner: null };
+           startSrv: 0, srv: 0, num: 2, winner: null, pos: [0, 0], sp: 0 };
 }
 function newState() {
   return { sport: 'tennis', swap: false, rot: null, roster: null, names: DEFAULT_NAMES.slice(), tennis: newTennis(), pickle: newPickle(), custom: newPickle({ target: 21 }) };
@@ -299,18 +299,20 @@ function pickPoint(k, w) {
   const l = 1 - w;
   if (k.serveMode === 'sideout') {
     if (w !== k.srv) {
-      if (!k.singles && k.num === 1) k.num = 2; else { k.srv = w; k.num = 1; }
+      if (!k.singles && k.num === 1) { k.num = 2; k.sp = 1 - k.sp; } else { k.srv = w; k.num = 1; k.sp = k.pos[w]; }
       return true;
     }
   } else if (k.serveMode === 'rally') {
+    if (k.srv === w) k.pos[w] = 1 - k.pos[w];   // the serving pair swap sides after winning a point
     k.srv = w;
   }
+  if (k.serveMode === 'sideout') k.pos[w] = 1 - k.pos[w];   // reaching here means the serving team won the rally
   k.p[w]++;
   if (k.p[w] >= k.target && (!k.winBy2 || k.p[w] - k.p[l] >= 2 || (k.cap > k.target && k.p[w] >= k.cap))) {
     k.games.push([k.p[0], k.p[1]]);
     k.gw[w]++;
     if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;   // keep the final score on screen
-    else { k.p = [0, 0]; k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; k.last = { w: w, n: k.games.length, score: k.games[k.games.length - 1].slice() }; }
+    else { k.p = [0, 0]; k.startSrv = 1 - k.startSrv; k.srv = k.startSrv; k.num = 2; k.pos = [0, 0]; k.sp = 0; k.last = { w: w, n: k.games.length, score: k.games[k.games.length - 1].slice() }; }
   }
   return true;
 }
@@ -326,6 +328,12 @@ function tennisPointState(t, i) {
   if (!winsGame) return null;
   if (!winsSet) return 'game';
   return tennisSetsWon(t)[i] + 1 >= Math.ceil(t.bestOf / 2) ? 'match' : 'set';
+}
+/* which partner (0 = listed first) serves: rally follows the serving team's score (even: the one on the right), side-out follows server 1/2 */
+function pickServerIdx(k) {
+  if (k.serveMode === 'rally') return k.p[k.srv] % 2 === 0 ? k.pos[k.srv] : 1 - k.pos[k.srv];
+  if (k.serveMode === 'sideout' && !k.singles) return k.sp;
+  return -1;
 }
 function pickCanWin(k, i) {
   if (k.winner !== null) return false;
@@ -345,7 +353,7 @@ const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 /* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
 function rotPick(rot) {
   const P = rot.players;
-  const idx = P.map((_, i) => i).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
+  const idx = P.map((_, i) => i).filter(i => !P[i].out).sort((a, b) => P[a].g - P[b].g || P[a].last - P[b].last || a - b);
   if (rot.mode === 'singles') {
     /* fairness first: only players on the fewest matches (topped up from the next level if needed), then the pair that has met least, then the longest waiters */
     const minG = P[idx[0]].g, pool = idx.filter(i => P[i].g === minG);
@@ -376,16 +384,16 @@ const mkey = t => t.map(x => x.slice().sort((a, b) => a - b).join('+')).sort().j
 /* every lineup that keeps match counts within 1: the players chosen must be the ones on the fewest matches (any of those tied at the edge) */
 function rotOptions(rot) {
   const P = rot.players, n = P.length, k = rot.mode === 'singles' ? 2 : 4, out = [];
-  const need = P.map(p => p.g).sort((a, b) => a - b).slice(0, k).join();
+  const need = P.filter(p => !p.out).map(p => p.g).sort((a, b) => a - b).slice(0, k).join();
   const rec = (start, pick) => {
     if (pick.length === k) {
       if (pick.map(i => P[i].g).sort((a, b) => a - b).join() !== need) return;
-      const sit = P.map((_, i) => i).filter(i => !pick.includes(i));
+      const sit = P.map((_, i) => i).filter(i => !pick.includes(i) && !P[i].out);
       if (k === 2) out.push({ teams: [[pick[0]], [pick[1]]], sit: sit });
       else { const [a, b, c, d] = pick; [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]].forEach(t => out.push({ teams: t, sit: sit })); }
       return;
     }
-    for (let i = start; i < n; i++) rec(i + 1, pick.concat(i));
+    for (let i = start; i < n; i++) if (!P[i].out) rec(i + 1, pick.concat(i));
   };
   rec(0, []);
   return out;
@@ -434,7 +442,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (st.rot && !st.rot.mu) st.rot.mu = {}; if (!st.custom) st.custom = newPickle({ target: 21 }); ['pickle', 'custom'].forEach(x => { if (st[x] && !('cap' in st[x])) st[x].cap = 0; }); return st; }
+function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (st.rot && !st.rot.mu) st.rot.mu = {}; if (!st.custom) st.custom = newPickle({ target: 21 }); ['pickle', 'custom'].forEach(x => { if (st[x] && !('cap' in st[x])) st[x].cap = 0; if (st[x] && !st[x].pos) { st[x].pos = [0, 0]; st[x].sp = 0; } }); return st; }
 function save() {
   S.at = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
@@ -476,7 +484,7 @@ function buildBoard() {
   $('name' + i).addEventListener('input', () => fitText());
     $('name' + i).addEventListener('blur', commitName);
     $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
-    const selectAll = e => { const el = e.target; el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
+    const selectAll = e => { const el = e.target, v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
     $('name' + i).addEventListener('focus', selectAll);
     $('serve' + i).addEventListener('click', () => setServer(i));
     $('add' + i).addEventListener('click', () => addPoint(i));
@@ -512,6 +520,17 @@ function rotAfterPoint() {
 function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
 let HDR = { idle: false, unit: '' };
+/* add or remove players mid-session: counts are kept, and the lineup is re-picked only if no point has been played */
+function rotEdit(fn) {
+  act(() => {
+    const R = S.rot; fn(R);
+    const active = R.players.map((_, i) => i).filter(i => !R.players[i].out);
+    if (R.recorded) R.next = rotPick(R);
+    else if (matchFresh()) { R.lineup = rotPick(R); rotApply(); }
+    else R.lineup.sit = active.filter(i => !R.lineup.teams.flat().includes(i));
+    if (S.roster) { S.roster.names = active.map(i => R.players[i].n); S.roster.sides = null; }
+  });
+}
 function rotShuffle() {
   const r = S.rot; if (!r) return false;
   if (!r.recorded && !matchFresh()) { toast('Shuffle works before the first point'); return false; }
@@ -533,25 +552,43 @@ function openPlayers() {
   const single = r.mode === 'singles';
   const nm = t => t.map(i => esc(p[i].n)).join(' &amp; ');
   const playing = L.teams.flat();
-  const rows = p.map((x, i) => `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span></div>`).join('');
+  const active = p.map((_, i) => i).filter(i => !p[i].out), minP = single ? 2 : 4, fresh = r.recorded || matchFresh();
+  const onCourt = r.recorded ? [] : r.lineup.teams.flat();
+  const canRm = i => active.length > minP && (fresh || !onCourt.includes(i));
+  const rows = active.map(i => { const x = p[i]; return `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span>${canRm(i) ? `<button class="px" data-rmp="${i}" aria-label="Remove ${esc(x.n)}">&times;</button>` : ''}</div>`; }).join('') +
+    (active.length < 6 ? '<div class="prow in"><input class="pin" id="pNewName" maxlength="12" placeholder="Add a player" autocomplete="off" autocapitalize="words"><button class="opt" id="pAddP" style="margin:0;width:auto;padding:0 16px">Add</button></div>' : '') +
+    '<p class="sub2" style="margin:0 0 8px">' + (fresh ? 'Adding or removing players keeps everyone\'s match counts. A new player starts level with the fewest.' : 'Players on court can be removed once this match ends. New players join from the next match.') + '</p>';
   openSheet(`
     <h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
     <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
     <div class="row" style="margin-top:0">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
-    ${p.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
+    ${active.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
     ${!r.recorded && (L.teams[0].length === 1) !== single ? '<p class="sub2">' + (single ? 'Singles' : 'Doubles') + ' from the next match. The current match carries on.</p>' : ''}
     ${rows}
     ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
-    ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button><button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>' : ''}
+    ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
     <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
     <button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button>`);
+  document.querySelectorAll('[data-rmp]').forEach(b => b.onclick = () => { const n = p[+b.dataset.rmp].n; rotEdit(R => { R.players[+b.dataset.rmp].out = true; }); toast(n + ' removed. Undo brings them back.'); openPlayers(); });
+  const addP = () => {
+    const nm = ($('pNewName').value || '').trim(); if (!nm) { $('pNewName').focus(); return; }
+    rotEdit(R => {
+      const act = R.players.filter(x => !x.out), minG = Math.min(...act.map(x => x.g));
+      const old = R.players.find(x => x.out && x.n.toLowerCase() === nm.toLowerCase());
+      if (old) { old.out = false; old.g = Math.max(old.g, minG); return; }
+      let n2 = nm, c = 1; while (R.players.some(x => !x.out && x.n.toLowerCase() === n2.toLowerCase())) n2 = nm + ' ' + (++c);
+      R.players.push({ n: n2, g: minG, last: R.round - 1 });
+    });
+    toast(nm + ' added'); openPlayers();
+  };
+  if ($('pAddP')) { $('pAddP').onclick = addP; $('pNewName').onkeydown = e => { if (e.key === 'Enter') addP(); }; }
   if ($('pShuf')) $('pShuf').onclick = () => { if (rotShuffle()) openPlayers(); };
   if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
   if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }; rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
   document.querySelectorAll('#pRMode button').forEach(b => {
-    if (b.dataset.v === 'doubles' && p.length < 4) b.disabled = true;
+    if (b.dataset.v === 'doubles' && active.length < 4) b.disabled = true;
     b.onclick = () => {
       if (b.dataset.v === r.mode) return;
       act(() => {
@@ -597,7 +634,7 @@ function openPlayerSetup(fresh, opts) {
     <button class="opt" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
     ${opts.cont ? '<button class="opt ghost" id="pCont">Continue last session</button>' : ''}
     ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}`);
-  document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
+  document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { const v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('input', () => { $('pErr').textContent = ''; sync(); $('pReset').hidden = !draftP.some((v, i) => v !== pName(i)); }));
   const again = () => openPlayerSetup(false, opts);
   document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => {
@@ -637,6 +674,19 @@ function openPlayerSetup(fresh, opts) {
   if ($('pCont')) $('pCont').onclick = () => { draftP = null; sheetLock = false; save(); closeSheet(); };
   if ($('pBack')) $('pBack').onclick = () => { draftP = null; closeSheet(); };
 }
+/* player names for team i in doubles, when the app knows them (rotation lineup, or fixed teams from Who's playing? that haven't been renamed) */
+function teamMembers(i) {
+  if (S.rot && S.rot.lineup && !S.rot.recorded) {
+    const t = S.rot.lineup.teams[i];
+    return t.map(x => S.rot.players[x].n);
+  }
+  const R = S.roster;
+  if (!S.rot && R && R.rot === false && R.sides) {
+    const m = R.names.filter((_, j) => R.sides[j] === (i ? 'R' : 'L'));
+    return m.join(' & ') === S.names[i] ? m : null;
+  }
+  return null;
+}
 function setServer(i) {
   const k = cur();
   if (k.winner !== null) return;
@@ -644,8 +694,13 @@ function setServer(i) {
     if (k.tb || k.server === i) return;
     act(() => { k.server = i; });
   } else {
-    if (k.serveMode === 'off' || k.srv === i) return;
-    act(() => { k.srv = i; k.num = k.serveMode === 'sideout' ? 2 : k.num; if (k.p[0] + k.p[1] === 0) k.startSrv = i; });
+    if (k.serveMode === 'off') return;
+    if (k.srv === i) {   // tapping the serving team again: the partners are the other way round
+      if (k.singles || !teamMembers(i)) return;
+      act(() => { k.pos[i] = 1 - k.pos[i]; if (k.serveMode === 'sideout') k.sp = 1 - k.sp; });
+      toast('Partners swapped'); return;
+    }
+    act(() => { k.srv = i; k.num = k.serveMode === 'sideout' ? 2 : k.num; k.sp = k.pos[i]; if (k.p[0] + k.p[1] === 0) k.startSrv = i; });
   }
 }
 
@@ -674,7 +729,7 @@ function render() {
   fitText();
 }
 /* drop the least important pills (from the end) until the row fits */
-/* long names: shrink the text to fit (down to 50%) before it gets cut off */
+/* long names: shrink the text to fit (down to 45%) before it gets cut off */
 const fitCtx = document.createElement('canvas').getContext('2d');
 function fitText() {
   [0, 1].forEach(i => {
@@ -683,7 +738,7 @@ function fitText() {
     fitCtx.font = cs.fontWeight + ' ' + base + 'px ' + cs.fontFamily;
     const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
     const need = fitCtx.measureText(el.value).width;
-    if (need > avail && avail > 0) el.style.fontSize = Math.max(base * 0.5, Math.floor(base * avail / need)) + 'px';
+    if (need > avail && avail > 0) el.style.fontSize = Math.max(base * 0.45, Math.floor(base * avail / need)) + 'px';
   });
   const m = $('stMain'); m.style.fontSize = '';
   const base = parseFloat(getComputedStyle(m).fontSize);
@@ -775,7 +830,9 @@ function renderPickle() {
     sv.style.visibility = tracking ? 'visible' : 'hidden';
     const isSrv = tracking && k.srv === i;
     const side = k.p[i] % 2 === 0 ? 'RIGHT' : 'LEFT';
-    sv.textContent = !isSrv ? 'serve' : k.serveMode === 'sideout' && !k.singles ? '● SERVER ' + k.num : (k.serveMode === 'rally' || k.singles) ? '● SERVE ' + side : '● SERVING';
+    const mem = isSrv ? teamMembers(i) : null, full = mem ? mem[mem.length === 1 ? 0 : pickServerIdx(k)] : null;
+    const who = full && full.length > 8 ? full.slice(0, 7) + '\u2026' : full;   // keep the side visible
+    sv.textContent = !isSrv ? 'serve' : k.serveMode === 'sideout' && !k.singles ? '● ' + (who ? who + ' · ' : '') + 'SERVER ' + k.num : (k.serveMode === 'rally' || k.singles) ? '● ' + (who ? who + ' · ' + side : 'SERVE ' + side) : '● SERVING';
     sv.classList.toggle('on', isSrv);
     $('team' + i).classList.toggle('won', k.winner === i);
     $('team' + i).classList.toggle('mp', mpT[i]);
@@ -1025,7 +1082,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126021535';
+const APP_VERSION = '20261126023751';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
