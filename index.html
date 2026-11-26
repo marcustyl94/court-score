@@ -956,6 +956,20 @@ if (firstVisit) { save(); openWelcome(); }
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+/* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
+const APP_VERSION = '20261126013546';
+function checkUpdate() {
+  if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
+  if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
+  fetch('./index.html?u=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
+    const m = t.match(/APP_VERSION = '(\d+)'/);
+    if (!m || m[1] === APP_VERSION) return;
+    try { if (sessionStorage.getItem('cs.upd') === m[1]) return; sessionStorage.setItem('cs.upd', m[1]); } catch (e) {}
+    location.replace(location.pathname + '?v=' + m[1]);   // a new address skips any cached copy
+  }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+setTimeout(checkUpdate, 1500);
 </script>
 </body>
 </html>
