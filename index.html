@@ -151,6 +151,9 @@ button:disabled{opacity:.35;cursor:default}
 .opt small{display:block;color:var(--muted);font-weight:500;margin-top:3px;font-size:14px}
 .opt.danger{color:#ffb3ba}
 .opt.ghost{background:transparent;box-shadow:0 0 0 1px var(--line) inset;text-align:center}
+/* the last button (Done, Got it, Not now, Cancel, or Start on first visit) stays in view when a popup scrolls */
+.sheet > .opt:last-child{position:sticky;bottom:0;z-index:1;margin-bottom:0;box-shadow:0 -12px 16px 4px var(--panel)}
+.sheet > .opt.ghost:last-child{background:var(--panel);box-shadow:0 0 0 1px var(--line) inset,0 -12px 16px 4px var(--panel)}
 .row{margin:14px 0}
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
@@ -1204,7 +1207,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126054404';
+const APP_VERSION = '20261126054850';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
