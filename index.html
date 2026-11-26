@@ -115,6 +115,7 @@ button:disabled{opacity:.35;cursor:default}
 .prow.in .seg.side button{padding:0 10px;min-height:40px;font-size:14px}
 .err{color:#ff8b95;font-size:14px;margin:0 0 6px}
 .err:empty{display:none}
+.opt[hidden]{display:none}
 .prow.in input{flex:1;min-width:0;height:44px;border-radius:10px;border:0;background:var(--bg);color:var(--text);padding:0 12px;font:inherit;font-size:16px}
 .px{width:44px;height:44px;font-size:26px;color:var(--muted)}
 .vs{background:var(--panel2);border-radius:14px;padding:14px;margin:0 0 12px;text-align:center;box-shadow:0 0 0 1px var(--line) inset}
@@ -472,6 +473,7 @@ function buildBoard() {
       if (S.names[i] !== v) { S.names[i] = v; save(); render(); }
     };
     $('name' + i).addEventListener('change', commitName);
+  $('name' + i).addEventListener('input', () => fitText());
     $('name' + i).addEventListener('blur', commitName);
     $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
     const selectAll = e => { const el = e.target; el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
@@ -483,6 +485,7 @@ function buildBoard() {
 
 let lastTap = [0, 0];
 function addPoint(i) {
+  if (S.rot && S.rot.recorded && cur().winner !== null) { openPlayers(); return; }   // the locked board's Next match button
   const now = Date.now();
   if (now - lastTap[i] < 250) return;        // ignore accidental double taps
   lastTap[i] = now;
@@ -589,13 +592,13 @@ function openPlayerSetup(fresh, opts) {
     ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="${pName(i)}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${!rot ? segHtml('side' + i, [['L', 'Left'], ['R', 'Right']], draftSide[i]).replace('class="seg"', 'class="seg side"') : ''}${n > min ? `<button class="px" data-rm="${i}" aria-label="Remove ${esc(v || pName(i))}">&times;</button>` : ''}</div>`).join('')}
     <p class="err" id="pErr"></p>
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
-    ${draftP.some((v, i) => v !== pName(i)) ? '<button class="opt ghost" id="pReset">Reset names to Player 1, 2 ...</button>' : ''}
+    <button class="opt ghost" id="pReset"${draftP.some((v, i) => v !== pName(i)) ? '' : ' hidden'}>Reset names to Player 1, 2 ...</button>
     <div class="row"><label>Rotation</label>${mustRot ? '<p class="sub2" style="margin:0">On, because ' + (n - min) + (n - min === 1 ? ' player sits' : ' players sit') + ' out each match. Everyone plays about the same number of matches. For fixed teams, remove players (&times;) until ' + min + ' are left.</p>' : segHtml('pRot', [['off', 'Off'], ['on', 'On']], rot ? 'on' : 'off') + '<p class="sub2" style="margin:6px 0 0">' + (rot ? (single ? 'Opponents' : 'Partners') + ' change after every match.' : 'Fixed ' + (single ? 'players' : 'teams') + '. Pick who starts on the left and right court.') + '</p>'}</div>
     <button class="opt" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
     ${opts.cont ? '<button class="opt ghost" id="pCont">Continue last session</button>' : ''}
     ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}`);
   document.querySelectorAll('.pin').forEach(el => el.addEventListener('focus', () => { el.select(); setTimeout(() => { try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); }));
-  document.querySelectorAll('.pin').forEach(el => el.addEventListener('input', () => { $('pErr').textContent = ''; }));
+  document.querySelectorAll('.pin').forEach(el => el.addEventListener('input', () => { $('pErr').textContent = ''; sync(); $('pReset').hidden = !draftP.some((v, i) => v !== pName(i)); }));
   const again = () => openPlayerSetup(false, opts);
   document.querySelectorAll('#pMode button').forEach(b => b.onclick = () => {
     sync(); draftMode = b.dataset.v; draftSide = null;
@@ -664,9 +667,28 @@ function render() {
   }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
+  if (S.rot && S.rot.recorded && cur().winner !== null) [0, 1].forEach(i => {
+    const b = $('add' + i); b.disabled = false; b.textContent = 'NEXT MATCH \u203a'; b.classList.add('alt');
+  });
   fitChips();
+  fitText();
 }
 /* drop the least important pills (from the end) until the row fits */
+/* long names: shrink the text to fit (down to 50%) before it gets cut off */
+const fitCtx = document.createElement('canvas').getContext('2d');
+function fitText() {
+  [0, 1].forEach(i => {
+    const el = $('name' + i); el.style.fontSize = '';
+    const cs = getComputedStyle(el), base = parseFloat(cs.fontSize);
+    fitCtx.font = cs.fontWeight + ' ' + base + 'px ' + cs.fontFamily;
+    const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+    const need = fitCtx.measureText(el.value).width;
+    if (need > avail && avail > 0) el.style.fontSize = Math.max(base * 0.5, Math.floor(base * avail / need)) + 'px';
+  });
+  const m = $('stMain'); m.style.fontSize = '';
+  const base = parseFloat(getComputedStyle(m).fontSize);
+  if (m.scrollWidth > m.clientWidth + 1) m.style.fontSize = Math.max(base * 0.65, Math.floor(base * m.clientWidth / m.scrollWidth)) + 'px';
+}
 function fitChips() {
   const el = $('stSub');
   while (el.scrollWidth > el.clientWidth + 1 && el.children.length > 1) el.removeChild(el.lastElementChild);
@@ -1003,7 +1025,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126015140';
+const APP_VERSION = '20261126021535';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
