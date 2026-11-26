@@ -132,9 +132,13 @@ button:disabled{opacity:.35;cursor:default}
 .prow.in input{flex:1;min-width:0;height:44px;border-radius:10px;border:0;background:var(--bg);color:var(--text);padding:0 12px;font:inherit;font-size:16px}
 .px{width:44px;height:44px;font-size:26px;color:var(--muted)}
 .vs{background:var(--panel2);border-radius:14px;padding:14px;margin:0 0 12px;text-align:center;box-shadow:0 0 0 1px var(--line) inset}
-.vs .t{font-weight:800;font-size:18px}
-.vs .v{color:var(--muted);font-size:13px;margin:4px 0}
-.vs .s{color:var(--muted);font-size:14px;margin-top:8px}
+.vs .lb{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.vs .t{font-weight:800;font-size:19px;line-height:1.25}
+.vs .ps{color:var(--muted);font-size:14px;margin-top:2px}
+.vs .ps b{color:var(--text);font-weight:700}
+.vs .v{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:6px 0}
+.vs .s{color:var(--muted);font-size:14px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.vs .s b{color:var(--text);font-weight:600}
 
 /* sheets */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
@@ -621,7 +625,7 @@ function openPlayers() {
   const single = r.mode === 'singles';
   const nm = t => t.map(i => esc(p[i].n)).join(' &amp; ');
   const posOn = S.sport === 'pickle' && cur().serveMode !== 'off' && (r.recorded || matchFresh()), fs = r.recorded ? 0 : cur().srv;
-  const posl = j => posOn && L.teams[j].length === 2 ? `<div class="v">${esc(p[L.teams[j][0]].n)} starts right${j === fs ? ' &middot; serves first' : ''}</div>` : '';
+  const posl = j => posOn && L.teams[j].length === 2 ? `<div class="ps"><b>${esc(p[L.teams[j][0]].n)}</b> starts right${j === fs ? ' &middot; serves first' : ''}</div>` : '';
   const playing = L.teams.flat();
   const active = p.map((_, i) => i).filter(i => !p[i].out), minP = single ? 2 : 4, fresh = r.recorded || matchFresh();
   const onCourt = r.recorded ? [] : r.lineup.teams.flat();
@@ -632,8 +636,8 @@ function openPlayers() {
   openSheet(`
     <div class="hrow"><h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>${r.recorded ? '' : '<button class="tbtn" id="pNewTop">New session</button>'}</div>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
-    <div class="cols three"><div><div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
-    <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
+    <div class="cols three"><div><div class="vs"><div class="lb">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div>${posl(0)}<div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>${posl(1)}
+    <div class="s">${L.sit.length ? 'Sitting out: <b>' + esc(L.sit.map(i => p[i].n).join(', ')) + '</b>' : 'Everyone is playing'}</div></div>
     ${r.recorded ? '<button class="opt" id="pNext">Start next match<small>Clears the score and sets the team names.</small></button>' + (r.lineup.teams.flat().some(i => p[i].out) ? '' : '<button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>') : ''}
     ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
     </div><div><div class="row" style="margin-top:10px">${segHtml('pRMode', [['doubles', 'Doubles'], ['singles', 'Singles']], r.mode)}</div>
@@ -647,7 +651,8 @@ function openPlayers() {
     act(() => { const R = S.rot; R.players[i].n = v; rotApply(); if (S.roster) S.roster.names = R.players.filter(x => !x.out).map(x => x.n); });
     const L2 = S.rot.recorded ? S.rot.next : S.rot.lineup, P2 = S.rot.players;
     document.querySelectorAll('#sheet .vs .t').forEach((t, k) => { t.textContent = L2.teams[k].map(j => P2[j].n).join(' & '); });
-    const so = document.querySelector('#sheet .vs .s'); if (so && L2.sit.length) so.textContent = 'Sitting out: ' + L2.sit.map(j => P2[j].n).join(', ');
+    const so = document.querySelector('#sheet .vs .s'); if (so && L2.sit.length) so.innerHTML = 'Sitting out: <b>' + esc(L2.sit.map(j => P2[j].n).join(', ')) + '</b>';
+    document.querySelectorAll('#sheet .vs .ps b').forEach((b, k) => { if (L2.teams[k]) b.textContent = P2[L2.teams[k][0]].n; });
   }, el => S.rot.players.filter((x, j) => !x.out && j !== +el.dataset.ren).map(x => x.n));
   document.querySelectorAll('[data-rmp]').forEach(b => b.onclick = () => { const n = p[+b.dataset.rmp].n; rotEdit(R => { R.players[+b.dataset.rmp].out = true; }); toast(n + ' removed. Undo brings them back.'); openPlayers(); });
   const addP = () => {
@@ -1199,7 +1204,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126053956';
+const APP_VERSION = '20261126054404';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
