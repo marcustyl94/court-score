@@ -1169,10 +1169,10 @@ function openWelcome() {
   openSheet(`
     <h2>What are you playing?</h2>
     <p>Pick a sport to start. You can switch anytime from the top bar.</p>
-    <button class="opt big" data-w="tennis">Tennis<small>Best of 3 sets, Ad scoring, tiebreak at 6&#8209;6.</small></button>
-    <button class="opt big" data-w="pickle">Pickleball<small>Games to 11, win by 2.</small></button>
-    <button class="opt big" data-w="custom">Custom<small>Choose your own winning points.</small></button>
-    <p class="sub2" style="text-align:center;margin-top:10px">Tap the settings under the score anytime to change them.</p>`);
+    <button class="opt big" data-w="tennis">Tennis<small>Starts as best of 3 sets, Deuce and Advantage, tiebreak at 6&#8209;6.</small></button>
+    <button class="opt big" data-w="pickle">Pickleball<small>Starts as one game to 11, win by 2. Every rally scores a point.</small></button>
+    <button class="opt big" data-w="custom">Custom<small>Starts as one game to 21, win by 2. Set your own target.</small></button>
+    <p class="sub2" style="text-align:center;margin-top:10px">Starting rules only. Change them, and add pickleball serve tracking, in the settings under the score.</p>`);
   document.querySelectorAll('#sheet [data-w]').forEach(b => b.onclick = () => {
     S.sport = b.dataset.w; save(); render(); openPlayerSetup(true, { lock: true });
   });
@@ -1184,7 +1184,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126041439';
+const APP_VERSION = '20261126050500';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
