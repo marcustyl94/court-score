@@ -85,7 +85,7 @@ button:disabled{opacity:.35;cursor:default}
 .team.b{--c:var(--b)}
 .team.won{box-shadow:0 0 0 4px var(--gold) inset}
 .top{display:flex;align-items:center;gap:10px;justify-content:space-between}
-.name{background:transparent;border:0;color:var(--c);font-weight:800;font-size:clamp(20px,7cqh,40px);
+.name{cursor:pointer;caret-color:transparent;-webkit-user-select:none;user-select:none;background:transparent;border:0;color:var(--c);font-weight:800;font-size:clamp(20px,7cqh,40px);
   width:100%;min-width:0;outline:none;padding:4px 0;-webkit-user-select:text;user-select:text;text-overflow:ellipsis}
 .name:focus{border-bottom:2px solid var(--c)}
 .serve{flex:none;font-size:clamp(11px,3.4cqh,16px);font-weight:700;letter-spacing:.06em;color:var(--muted);
@@ -120,6 +120,10 @@ button:disabled{opacity:.35;cursor:default}
 .err{color:#ff8b95;font-size:14px;margin:0 0 6px}
 .err:empty{display:none}
 .opt[hidden]{display:none}
+.pname{flex:1;min-width:0;background:transparent;border:0;color:var(--text);font:inherit;font-weight:800;font-size:16px;padding:6px 4px;border-radius:8px}
+.pname:focus{background:var(--bg);outline:2px solid var(--line)}
+.prow.in .pname{height:44px;background:var(--bg);padding:0 12px;font-weight:600}
+.tlabel{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 6px}
 .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hrow h2{margin:0}
 .hrow .tbtn{flex:none;padding:0 14px;min-height:40px}
@@ -487,7 +491,7 @@ function buildBoard() {
   $('board').innerHTML = [0, 1].map(i => `
     <section class="team ${i ? 'b' : 'a'}" id="team${i}">
       <div class="top">
-        <input class="name" id="name${i}" maxlength="16" enterkeyhint="done" autocomplete="off" aria-label="Team ${i + 1} name">
+        <input class="name" id="name${i}" readonly tabindex="-1" autocomplete="off" aria-label="Team ${i + 1}, tap to edit players">
         <button class="serve" id="serve${i}"></button>
       </div>
       <div class="score" id="score${i}">0</div>
@@ -496,17 +500,7 @@ function buildBoard() {
       <div class="badge">WINNER</div>
     </section>`).join('');
   [0, 1].forEach(i => {
-    const commitName = e => {
-      const v = e.target.value.trim() || DEFAULT_NAMES[i];
-      e.target.value = v;                       // show the default straight away, even while the field is focused
-      if (S.names[i] !== v) { S.names[i] = v; save(); render(); }
-    };
-    $('name' + i).addEventListener('change', commitName);
-  $('name' + i).addEventListener('input', () => fitText());
-    $('name' + i).addEventListener('blur', commitName);
-    $('name' + i).addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
-    const selectAll = e => { const el = e.target, v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); };
-    $('name' + i).addEventListener('focus', selectAll);
+    $('name' + i).addEventListener('click', () => openPlayers());   // names are edited in the Players popup
     $('serve' + i).addEventListener('click', () => setServer(i));
     $('add' + i).addEventListener('click', () => addPoint(i));
   });
@@ -576,9 +570,45 @@ function rotShuffle() {
 }
 function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, draftMode = 'doubles', endArm = false;
+/* rename inputs: tap selects the name, Enter or leaving saves; empty reverts, duplicates get a number */
+function bindRename(els, save, others) {
+  els.forEach(el => {
+    el.addEventListener('focus', () => { const v = el.value; el.select(); setTimeout(() => { if (el.value === v) try { el.setSelectionRange(0, el.value.length); } catch (x) {} }, 0); });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
+    el.addEventListener('change', () => {
+      let v = el.value.trim();
+      if (!v) { el.value = el.defaultValue; return; }
+      const taken = others(el).map(x => x.toLowerCase()); let v2 = v, c = 1;
+      while (taken.includes(v2.toLowerCase())) v2 = v + ' ' + (++c);
+      el.value = el.defaultValue = v2; save(el, v2); toast('Renamed');
+    });
+  });
+}
+function openFixedPlayers() {
+  const R = S.roster, known = !!(R && R.rot === false && R.sides && [0, 1].every(t => teamMembers(t)));
+  const note = '<p class="sub2" style="margin:0 0 8px">Tap a name to change it. The score stays as it is.</p>';
+  let body;
+  if (known) {
+    body = ['L', 'R'].map((sd, t) => `<div class="tlabel" style="color:var(--${t ? 'b' : 'a'})">${t ? 'Right' : 'Left'} team</div>` +
+      R.names.map((nm, j) => R.sides[j] === sd ? `<div class="prow in"><input class="pname" data-fx="${j}" value="${esc(nm)}" maxlength="12" autocomplete="off" autocapitalize="words" aria-label="Rename ${esc(nm)}"></div>` : '').join('')).join('');
+  } else {
+    body = [0, 1].map(t => `<div class="prow in"><input class="pname" data-tm="${t}" value="${esc(S.names[t])}" maxlength="24" autocomplete="off" autocapitalize="words" aria-label="Team ${t + 1} name"></div>`).join('');
+  }
+  openSheet(`
+    <div class="hrow"><h2>${known ? 'Players' : 'Team names'}</h2><button class="tbtn" id="pNewTop">New session</button></div>
+    ${note}${body}
+    <button class="opt ghost" id="pDone" style="margin-top:6px">Done</button>`);
+  bindRename(document.querySelectorAll('[data-fx]'), (el, v) => {
+    const j = +el.dataset.fx;
+    act(() => { S.roster.names[j] = v; S.names = ['L', 'R'].map(sd => S.roster.names.filter((_, x) => S.roster.sides[x] === sd).join(' & ')); });
+  }, el => S.roster.names.filter((_, x) => x !== +el.dataset.fx));
+  bindRename(document.querySelectorAll('[data-tm]'), (el, v) => { act(() => { S.names[+el.dataset.tm] = v; }); }, el => [S.names[1 - el.dataset.tm]]);
+  $('pDone').onclick = closeSheet;
+  $('pNewTop').onclick = () => openPlayerSetup(true, { note: 'New group? Tap a name to type over it. Nothing changes until you tap Start.' });
+}
 function openPlayers() {
   const r = S.rot;
-  if (!r) { openPlayerSetup(true, S.roster ? { note: 'New group? Tap a name to type over it. Nothing changes until you tap Start.' } : {}); return; }
+  if (!r) { openFixedPlayers(); return; }
   endArm = false;
   const p = r.players, L = r.recorded ? r.next : r.lineup;
   const single = r.mode === 'singles';
@@ -587,7 +617,7 @@ function openPlayers() {
   const active = p.map((_, i) => i).filter(i => !p[i].out), minP = single ? 2 : 4, fresh = r.recorded || matchFresh();
   const onCourt = r.recorded ? [] : r.lineup.teams.flat();
   const canRm = i => active.length > minP && (fresh || !onCourt.includes(i));
-  const rows = active.map(i => { const x = p[i]; return `<div class="prow"><b>${esc(x.n)}</b><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span>${canRm(i) ? `<button class="px" data-rmp="${i}" aria-label="Remove ${esc(x.n)}">&times;</button>` : ''}</div>`; }).join('') +
+  const rows = active.map(i => { const x = p[i]; return `<div class="prow"><input class="pname" data-ren="${i}" value="${esc(x.n)}" maxlength="12" autocomplete="off" autocapitalize="words" aria-label="Rename ${esc(x.n)}"><span class="pg">${x.g} played</span><span class="pst ${playing.includes(i) ? 'play' : ''}">${playing.includes(i) ? (r.recorded ? 'Next' : 'Playing') : 'Sitting'}</span>${canRm(i) ? `<button class="px" data-rmp="${i}" aria-label="Remove ${esc(x.n)}">&times;</button>` : ''}</div>`; }).join('') +
     (active.length < 6 ? '<div class="prow in"><input class="pin" id="pNewName" maxlength="12" placeholder="Add a player" autocomplete="off" autocapitalize="words"><button class="opt" id="pAddP" style="margin:0;width:auto;padding:0 16px">Add</button></div>' : '') +
     '<p class="sub2" style="margin:0 0 8px">' + (fresh ? 'Adding or removing players keeps everyone\'s match counts. A new player starts level with the fewest.' : 'Players on court can be removed once this match ends. New players join from the next match.') + '</p>';
   openSheet(`
@@ -603,6 +633,13 @@ function openPlayers() {
     ${rows}
     <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
     <button class="opt ghost" id="pNew">New session<small>Change players or teams. Nothing changes until you tap Start.</small></button>`);
+  bindRename(document.querySelectorAll('[data-ren]'), (el, v) => {
+    const i = +el.dataset.ren;
+    act(() => { const R = S.rot; R.players[i].n = v; rotApply(); if (S.roster) S.roster.names = R.players.filter(x => !x.out).map(x => x.n); });
+    const L2 = S.rot.recorded ? S.rot.next : S.rot.lineup, P2 = S.rot.players;
+    document.querySelectorAll('#sheet .vs .t').forEach((t, k) => { t.textContent = L2.teams[k].map(j => P2[j].n).join(' & '); });
+    const so = document.querySelector('#sheet .vs .s'); if (so && L2.sit.length) so.textContent = 'Sitting out: ' + L2.sit.map(j => P2[j].n).join(', ');
+  }, el => S.rot.players.filter((x, j) => !x.out && j !== +el.dataset.ren).map(x => x.n));
   document.querySelectorAll('[data-rmp]').forEach(b => b.onclick = () => { const n = p[+b.dataset.rmp].n; rotEdit(R => { R.players[+b.dataset.rmp].out = true; }); toast(n + ' removed. Undo brings them back.'); openPlayers(); });
   const addP = () => {
     const nm = ($('pNewName').value || '').trim(); if (!nm) { $('pNewName').focus(); return; }
@@ -1082,7 +1119,7 @@ const isInstalled = () => { try { return navigator.standalone === true || matchM
 /* ⋯ menu: session items, match items, then Reset on its own; Players only while rotating; Reset only when there is something to reset */
 $('more').onclick = () => {
   const mi = (act, label, cls) => `<button role="menuitem" data-act="${act}"${cls ? ' class="' + cls + '"' : ''}>${label}</button>`;
-  const session = (S.rot ? mi('players', 'Players') : '') + mi('newsession', 'New session');
+  const session = mi('players', 'Players') + mi('newsession', 'New session');
   const match = mi('settings', 'Settings') + (S.sport === 'custom' ? '' : mi('rules', 'Rules')) + mi('swap', 'Swap sides');
   const reset = cur().winner === null && matchFresh() ? '' : mi('reset', 'Reset', 'dng');
   const install = !isInstalled() && location.protocol.startsWith('http') ? mi('install', 'Add to Home Screen') : '';
@@ -1147,7 +1184,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126035133';
+const APP_VERSION = '20261126041439';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
