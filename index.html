@@ -117,6 +117,9 @@ button:disabled{opacity:.35;cursor:default}
 .err{color:#ff8b95;font-size:14px;margin:0 0 6px}
 .err:empty{display:none}
 .opt[hidden]{display:none}
+.hrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hrow h2{margin:0}
+.hrow .tbtn{flex:none;padding:0 14px;min-height:40px}
 .prow.in input{flex:1;min-width:0;height:44px;border-radius:10px;border:0;background:var(--bg);color:var(--text);padding:0 12px;font:inherit;font-size:16px}
 .px{width:44px;height:44px;font-size:26px;color:var(--muted)}
 .vs{background:var(--panel2);border-radius:14px;padding:14px;margin:0 0 12px;text-align:center;box-shadow:0 0 0 1px var(--line) inset}
@@ -505,6 +508,7 @@ function buildBoard() {
 let lastTap = [0, 0];
 function addPoint(i) {
   if (S.rot && S.rot.recorded && cur().winner !== null) { openPlayers(); return; }   // the locked board's Next match button
+  if (!S.rot && cur().winner !== null) { act(() => freshMatch()); toast('New match. Undo is available.'); return; }   // fixed teams: play again
   const now = Date.now();
   if (now - lastTap[i] < 250) return;        // ignore accidental double taps
   lastTap[i] = now;
@@ -567,7 +571,7 @@ function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, draftMode = 'doubles', endArm = false;
 function openPlayers() {
   const r = S.rot;
-  if (!r) { openPlayerSetup(true); return; }
+  if (!r) { openPlayerSetup(true, S.roster ? { note: 'New group? Tap a name and type over it, or reset names to Player 1, 2 ... Nothing changes until you tap Start.' } : {}); return; }
   endArm = false;
   const p = r.players, L = r.recorded ? r.next : r.lineup;
   const single = r.mode === 'singles';
@@ -580,7 +584,7 @@ function openPlayers() {
     (active.length < 6 ? '<div class="prow in"><input class="pin" id="pNewName" maxlength="12" placeholder="Add a player" autocomplete="off" autocapitalize="words"><button class="opt" id="pAddP" style="margin:0;width:auto;padding:0 16px">Add</button></div>' : '') +
     '<p class="sub2" style="margin:0 0 8px">' + (fresh ? 'Adding or removing players keeps everyone\'s match counts. A new player starts level with the fewest.' : 'Players on court can be removed once this match ends. New players join from the next match.') + '</p>';
   openSheet(`
-    <h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>
+    <div class="hrow"><h2>${r.recorded ? 'Match ' + r.round + ' finished' : 'Players'}</h2>${r.recorded ? '' : '<button class="tbtn" id="pNewTop">New session</button>'}</div>
     <p>${r.recorded ? 'The match is counted. Here is the next match.' : 'Now on court. ' + (L.teams[0].length === 1 ? 'Opponents' : 'Teams') + ' change after every match.'}</p>
     <div class="vs"><div class="v">${r.recorded ? 'Next: match ' : 'Now playing: match '}${r.round + 1}</div><div class="t">${nm(L.teams[0])}</div><div class="v">vs</div><div class="t">${nm(L.teams[1])}</div>
     <div class="s">${L.sit.length ? 'Sitting out: ' + esc(L.sit.map(i => p[i].n).join(', ')) : 'Everyone is playing'}</div></div>
@@ -622,6 +626,7 @@ function openPlayers() {
   });
   $('pDone').onclick = closeSheet;
   $('pNew').onclick = () => openPlayerSetup(true);
+  if ($('pNewTop')) $('pNewTop').onclick = () => openPlayerSetup(true, { note: 'New group? Tap a name and type over it, or reset names to Player 1, 2 ... Nothing changes until you tap Start.' });
 
 }
 let draftRot = false, draftSide = null, sheetLock = false;
@@ -743,8 +748,8 @@ function render() {
   }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
-  if (S.rot && S.rot.recorded && cur().winner !== null) [0, 1].forEach(i => {
-    const b = $('add' + i); b.disabled = false; b.textContent = 'NEXT MATCH \u203a'; b.classList.add('alt');
+  if (cur().winner !== null && (!S.rot || S.rot.recorded)) [0, 1].forEach(i => {
+    const b = $('add' + i); b.disabled = false; b.textContent = (S.rot ? 'NEXT MATCH' : 'NEW MATCH') + ' \u203a'; b.classList.add('alt');
   });
   fitChips();
   fitText();
@@ -879,25 +884,30 @@ function toast(msg) {
 function resetStep1() {
   const over = cur().winner !== null;
   if (over && S.rot && S.rot.recorded) { openPlayers(); return; }
+  if (!over && matchFresh()) { toast('Nothing to reset yet'); return; }
   // a finished match has nothing left to choose: go straight to the confirmation
   if (over) { resetStep2('match'); return; }
-  // best of 1 (pickleball, custom): the game in play is the whole match, so there is only one kind of reset
-  if (!over && S.sport !== 'tennis' && cur().bestOf === 1) { resetStep2('match', true); return; }
+  // best of 1 (pickleball, custom): the game in play is the whole match, so there is only one kind of reset (rotation also offers a skip)
+  if (!S.rot && S.sport !== 'tennis' && cur().bestOf === 1) { resetStep2('match', true); return; }
+  const bo1 = S.sport !== 'tennis' && cur().bestOf === 1;
   openSheet(`
     <h2>${over ? 'Match finished' : 'Reset scores'}</h2>
     <p>${over ? 'This match is over, so there are no game points left to reset. Start a new match to play again.' : 'Choose what to reset. You will be asked to confirm on the next step.'}</p>
-    ${over ? '' : '<button class="opt" id="rGame">Reset current game points<small>Clears the points in play. Games and sets stay.</small></button>'}
-    <button class="opt danger" id="rMatch">Start a new match<small>Clears all points, games and sets. ${S.rot ? 'Same teams play again. This match isn\'t counted.' : 'Names and settings stay.'}</small></button>
+    ${over || bo1 ? '' : '<button class="opt" id="rGame">Reset current game points<small>Clears the points in play. Games and sets stay.</small></button>'}
+    <button class="opt danger" id="rMatch">${S.rot ? 'Start over, same teams' : 'Start a new match'}<small>Clears all points${bo1 ? '' : ', games and sets'}. ${S.rot ? 'This match isn\'t counted.' : 'Names and settings stay.'}</small></button>
+    ${S.rot ? '<button class="opt danger" id="rSkip">Skip to another lineup<small>For an abandoned match. It isn\'t counted, and a different fair lineup takes the court.</small></button>' : ''}
     <button class="opt ghost" id="rCancel">Cancel</button>`);
   if ($('rGame')) $('rGame').onclick = () => resetStep2('game');
   $('rMatch').onclick = () => resetStep2('match');
+  if ($('rSkip')) $('rSkip').onclick = () => resetStep2('skip');
   $('rCancel').onclick = closeSheet;
 }
 function resetStep2(scope, single) {
   openSheet(`
-    <h2>${single ? 'Reset the score?' : scope === 'match' ? 'Start a new match?' : 'Reset current game points?'}</h2>
+    <h2>${single ? 'Reset the score?' : scope === 'skip' ? 'Skip to another lineup?' : scope === 'match' ? (S.rot ? 'Start over, same teams?' : 'Start a new match?') : 'Reset current game points?'}</h2>
     <p>Press and hold the button for about one second to confirm. You can still use Undo right after.</p>
     ${S.rot && scope === 'match' ? '<p class="sub2">Same teams play again. This match isn\'t counted.</p>' : ''}
+    ${scope === 'skip' ? '<p class="sub2">This match isn\'t counted. Match counts stay as they are.</p>' : ''}
     <button class="hold" id="hold"><span class="fill"></span><span class="lbl">Hold to confirm</span></button>
     <button class="opt ghost" id="rBack">Cancel</button>`);
   const h = $('hold');
@@ -917,6 +927,8 @@ function doReset(scope) {
     if (scope === 'game') {
       const k = cur(); k.p = [0, 0];
       if (S.sport === 'pickle') { k.num = 2; }
+    } else if (scope === 'skip') {
+      const R = S.rot; R.lineup = rotShufflePick(R, R.lineup, Math.random); rotApply(); freshMatch();
     } else freshMatch();
   });
 }
@@ -1058,7 +1070,7 @@ $('modeChip').onclick = () => showPop(
   'left', $('modeChip'));
 $('more').onclick = () => showPop(
   (S.sport === 'custom' ? '' : '<button role="menuitem" data-act="rules">Rules</button>') +
-  '<button role="menuitem" data-act="swap">Swap sides</button><button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
+  '<button role="menuitem" data-act="swap">Swap sides</button><button role="menuitem" data-act="players">Players</button><button role="menuitem" data-act="newsession">New session</button><button role="menuitem" data-act="settings">Settings</button><button role="menuitem" class="dng" data-act="reset">Reset</button>',
   'right', $('more'));
 pop.onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1067,6 +1079,7 @@ pop.onclick = e => {
   else if (b.dataset.act === 'rules') openRules();
   else if (b.dataset.act === 'swap') swapSides();
   else if (b.dataset.act === 'players') openPlayers();
+  else if (b.dataset.act === 'newsession') openPlayerSetup(true, { note: 'New group? Tap a name and type over it, or reset names to Player 1, 2 ... Nothing changes until you tap Start.' });
   else if (b.dataset.act === 'settings') openSettings();
   else if (b.dataset.act === 'reset') resetStep1();
 };
@@ -1107,7 +1120,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126025155';
+const APP_VERSION = '20261126030814';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
