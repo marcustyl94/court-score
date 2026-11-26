@@ -158,6 +158,10 @@ button:disabled{opacity:.35;cursor:default}
 /* the last button (Done, Got it, Not now, Cancel, or Start on first visit) stays in view when a popup scrolls */
 .sheet > .opt:last-child,.sheet > .foot:last-child{position:sticky;bottom:0;z-index:1;margin-bottom:0;box-shadow:0 -10px 0 var(--panel),0 24px 0 var(--panel)}
 .sheet > .foot:last-child{background:var(--panel)}
+/* scroll cue: while content is hidden under the pinned buttons, a fade and "More below" sit just above them */
+.sheet.more > .opt:last-child::before,.sheet.more > .foot:last-child::before{content:'More below \25BE';position:absolute;left:0;right:0;bottom:calc(100% + 4px);height:56px;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;pointer-events:none;
+  background:linear-gradient(to bottom,transparent,var(--panel) 50%);color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.04em}
 .foot > .opt:last-child{margin-bottom:0}
 .sheet > .opt.ghost:last-child,.foot > .opt.ghost:last-child{background:var(--panel);color:var(--muted);font-weight:600;padding:14px}
 .foot > .opt.ghost:last-child{box-shadow:none}
@@ -972,7 +976,11 @@ function openSheet(html, wide) {
   sh.innerHTML = html;
   sh.classList.toggle('wide', wide === true); sh.classList.toggle('mid', wide === 'mid'); $('scrim').classList.add('show');
   if (was === null || was !== (sh.querySelector('h2') || {}).textContent) sh.scrollTop = 0;   // after showing: a hidden popup ignores scrollTop
+  sheetMore();
 }
+function sheetMore() { const s = $('sheet'); s.classList.toggle('more', s.scrollTop + s.clientHeight < s.scrollHeight - 4); }
+$('sheet').addEventListener('scroll', sheetMore, { passive: true });
+window.addEventListener('resize', sheetMore);
 function closeSheet() { clearTimeout(holdTimer); $('scrim').classList.remove('show'); }
 $('scrim').addEventListener('click', e => { if (e.target === $('scrim') && !sheetLock) closeSheet(); });
 
@@ -1221,7 +1229,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126160931';
+const APP_VERSION = '20261126161607';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
