@@ -590,7 +590,7 @@ function openPlayerSetup(fresh, opts) {
     <p class="err" id="pErr"></p>
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
     ${draftP.some((v, i) => v !== pName(i)) ? '<button class="opt ghost" id="pReset">Reset names to Player 1, 2 ...</button>' : ''}
-    <div class="row"><label>Rotation</label>${mustRot ? '<p class="sub2" style="margin:0">On, because ' + (n - min) + (n - min === 1 ? ' player sits' : ' players sit') + ' out each match. Everyone plays about the same number of matches.</p>' : segHtml('pRot', [['off', 'Off'], ['on', 'On']], rot ? 'on' : 'off') + '<p class="sub2" style="margin:6px 0 0">' + (rot ? (single ? 'Opponents' : 'Partners') + ' change after every match.' : 'Fixed ' + (single ? 'players' : 'teams') + '. Pick who starts on the left and right court.') + '</p>'}</div>
+    <div class="row"><label>Rotation</label>${mustRot ? '<p class="sub2" style="margin:0">On, because ' + (n - min) + (n - min === 1 ? ' player sits' : ' players sit') + ' out each match. Everyone plays about the same number of matches. For fixed teams, remove players (&times;) until ' + min + ' are left.</p>' : segHtml('pRot', [['off', 'Off'], ['on', 'On']], rot ? 'on' : 'off') + '<p class="sub2" style="margin:6px 0 0">' + (rot ? (single ? 'Opponents' : 'Partners') + ' change after every match.' : 'Fixed ' + (single ? 'players' : 'teams') + '. Pick who starts on the left and right court.') + '</p>'}</div>
     <button class="opt" id="pStart">Start${S.roster || S.rot ? ' new session' : ''}<small>Starts a fresh match${rot ? ' and resets match counts.' : '.'}</small></button>
     ${opts.cont ? '<button class="opt ghost" id="pCont">Continue last session</button>' : ''}
     ${opts.lock ? '' : '<button class="opt ghost" id="pBack">Cancel</button>'}`);
@@ -998,7 +998,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126014736';
+const APP_VERSION = '20261126015022';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
