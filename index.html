@@ -56,6 +56,7 @@ button:disabled{opacity:.35;cursor:default}
 .tbtn.reset{color:#ffb3ba}
 .pc.set{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .pc.rot{flex-shrink:0;max-width:55%}
+.pc.shuf{flex-shrink:0;color:var(--text);font:inherit;font-size:clamp(11px,1.6vmin,14px);font-weight:800;box-shadow:0 0 0 1px var(--text) inset;cursor:pointer}
 .chip,#more{display:none}
 .bar{position:relative}
 .mpop{display:none;position:absolute;top:calc(100% - 4px);z-index:15;background:var(--panel2);border-radius:14px;padding:5px;min-width:170px;box-shadow:0 0 0 1px var(--line) inset,0 10px 30px rgba(0,0,0,.5)}
@@ -231,7 +232,7 @@ function newTennis(o) {
 }
 function newPickle(o) {
   o = o || {};
-  return { target: o.target || 11, winBy2: o.winBy2 !== false, bestOf: o.bestOf || 1,
+  return { target: o.target || 11, winBy2: o.winBy2 !== false, cap: o.cap || 0, bestOf: o.bestOf || 1,
            serveMode: o.serveMode || 'off', singles: !!o.singles, games: [], gw: [0, 0], p: [0, 0],
            startSrv: 0, srv: 0, num: 2, winner: null };
 }
@@ -298,7 +299,7 @@ function pickPoint(k, w) {
     k.srv = w;
   }
   k.p[w]++;
-  if (k.p[w] >= k.target && (!k.winBy2 || k.p[w] - k.p[l] >= 2)) {
+  if (k.p[w] >= k.target && (!k.winBy2 || k.p[w] - k.p[l] >= 2 || (k.cap > k.target && k.p[w] >= k.cap))) {
     k.games.push([k.p[0], k.p[1]]);
     k.gw[w]++;
     if (k.gw[w] >= Math.ceil(k.bestOf / 2)) k.winner = w;   // keep the final score on screen
@@ -323,7 +324,7 @@ function pickCanWin(k, i) {
   if (k.winner !== null) return false;
   if (k.serveMode === 'sideout' && k.srv !== i) return false;
   const np = k.p[i] + 1;
-  return np >= k.target && (!k.winBy2 || np - k.p[1 - i] >= 2);
+  return np >= k.target && (!k.winBy2 || np - k.p[1 - i] >= 2 || (k.cap > k.target && np >= k.cap));
 }
 function pickMatchPoint(k, i) {
   return pickCanWin(k, i) && k.gw[i] + 1 >= Math.ceil(k.bestOf / 2);
@@ -331,7 +332,7 @@ function pickMatchPoint(k, i) {
 
 /* ---------- player rotation: doubles, 4 to 6 players, one court ---------- */
 function newRot(names, mode) {
-  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, round: 0, lineup: null, next: null, recorded: false };
+  return { mode: mode === 'singles' ? 'singles' : 'doubles', players: names.map(n => ({ n: n, g: 0, last: -1 })), partner: {}, opp: {}, mu: {}, round: 0, lineup: null, next: null, recorded: false };
 }
 const pkey = (a, b) => a < b ? a + '-' + b : b + '-' + a;
 /* the four who have played least (ties: waited longest) take the court; the split with the fewest repeat partners and opponents wins */
@@ -352,15 +353,45 @@ function rotPick(rot) {
     }
     return { teams: [[best.a], [best.b]], sit: idx.filter(i => i !== best.a && i !== best.b).sort((a, b) => a - b) };
   }
-  const play = idx.slice(0, 4).sort((a, b) => a - b), sit = idx.slice(4).sort((a, b) => a - b);
-  const a = play[0], b = play[1], c = play[2], d = play[3];
+  /* doubles: any fair group of four (keeps match counts within 1), then the matchup, partners and opponents seen least; waiting longest only breaks ties */
   let best = null;
-  [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]].forEach(t => {
-    const cost = ((rot.partner[pkey(t[0][0], t[0][1])] || 0) + (rot.partner[pkey(t[1][0], t[1][1])] || 0)) * 10 +
-      t[0].reduce((s, x) => s + t[1].reduce((s2, y) => s2 + (rot.opp[pkey(x, y)] || 0), 0), 0);
-    if (!best || cost < best.cost) best = { cost: cost, t: t };
+  rotOptions(rot).forEach(o => {
+    const t = o.teams;
+    const cost = (rot.mu[mkey(t)] || 0) * 1000 +
+      ((rot.partner[pkey(t[0][0], t[0][1])] || 0) + (rot.partner[pkey(t[1][0], t[1][1])] || 0)) * 30 +
+      t[0].reduce((s, x) => s + t[1].reduce((s2, y) => s2 + (rot.opp[pkey(x, y)] || 0), 0), 0) * 3 +
+      t.flat().reduce((s, i) => s + P[i].last, 0) * 0.1;
+    if (!best || cost < best.cost - 1e-9) best = { cost: cost, o: o };
   });
-  return { teams: best.t, sit: sit };
+  return { teams: best.o.teams, sit: best.o.sit };
+}
+const mkey = t => t.map(x => x.slice().sort((a, b) => a - b).join('+')).sort().join('v');
+/* every lineup that keeps match counts within 1: the players chosen must be the ones on the fewest matches (any of those tied at the edge) */
+function rotOptions(rot) {
+  const P = rot.players, n = P.length, k = rot.mode === 'singles' ? 2 : 4, out = [];
+  const need = P.map(p => p.g).sort((a, b) => a - b).slice(0, k).join();
+  const rec = (start, pick) => {
+    if (pick.length === k) {
+      if (pick.map(i => P[i].g).sort((a, b) => a - b).join() !== need) return;
+      const sit = P.map((_, i) => i).filter(i => !pick.includes(i));
+      if (k === 2) out.push({ teams: [[pick[0]], [pick[1]]], sit: sit });
+      else { const [a, b, c, d] = pick; [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]].forEach(t => out.push({ teams: t, sit: sit })); }
+      return;
+    }
+    for (let i = start; i < n; i++) rec(i + 1, pick.concat(i));
+  };
+  rec(0, []);
+  return out;
+}
+/* shuffle: a random fair lineup among the least-repeated matchups, different from the current one where possible */
+function rotShufflePick(rot, current, rnd) {
+  const opts = rotOptions(rot), cur = current ? mkey(current.teams) : '';
+  let pool = opts.filter(o => mkey(o.teams) !== cur);
+  if (!pool.length) pool = opts;
+  const lo = Math.min(...pool.map(o => rot.mu[mkey(o.teams)] || 0));
+  pool = pool.filter(o => (rot.mu[mkey(o.teams)] || 0) === lo);
+  const o = pool[Math.floor(rnd() * pool.length)];
+  return { teams: o.teams.map(t => t.slice()), sit: o.sit.slice() };
 }
 /* fewest repeat meetings when the rest of this round's players are paired up (one may be left over) */
 function pairCost(list, rot) {
@@ -374,6 +405,8 @@ function rotRecord(rot) {
   const L = rot.lineup;
   L.teams.forEach(t => { if (t.length === 2) { const k = pkey(t[0], t[1]); rot.partner[k] = (rot.partner[k] || 0) + 1; } });
   L.teams[0].forEach(x => L.teams[1].forEach(y => { const k = pkey(x, y); rot.opp[k] = (rot.opp[k] || 0) + 1; }));
+  if (!rot.mu) rot.mu = {};
+  const mk = mkey(L.teams); rot.mu[mk] = (rot.mu[mk] || 0) + 1;
   L.teams.forEach(t => t.forEach(i => { rot.players[i].g++; rot.players[i].last = rot.round; }));
   rot.round++;
 }
@@ -394,7 +427,7 @@ function load() {
     }
   } catch (e) {}
 }
-function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (!st.custom) st.custom = newPickle({ target: 21 }); return st; }
+function fixState(st) { if (!('swap' in st)) st.swap = false; if (!('rot' in st)) st.rot = null; if (!('roster' in st)) st.roster = null; if (st.rot && !st.rot.mu) st.rot.mu = {}; if (!st.custom) st.custom = newPickle({ target: 21 }); ['pickle', 'custom'].forEach(x => { if (st[x] && !('cap' in st[x])) st[x].cap = 0; }); return st; }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({ state: S, history: history })); } catch (e) {}
 }
@@ -468,6 +501,17 @@ function rotAfterPoint() {
 }
 function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
+function rotShuffle() {
+  const r = S.rot; if (!r) return false;
+  if (!r.recorded && !matchFresh()) { toast('Shuffle works before the first point'); return false; }
+  act(() => {
+    const R = S.rot;
+    if (R.recorded) R.next = rotShufflePick(R, R.next, Math.random);
+    else { R.lineup = rotShufflePick(R, R.lineup, Math.random); rotApply(); }
+  });
+  toast('Players shuffled');
+  return true;
+}
 function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
 let draftP = null, draftMode = 'doubles', endArm = false;
 function openPlayers() {
@@ -488,9 +532,11 @@ function openPlayers() {
     ${p.length < 4 ? '<p class="sub2">Doubles needs at least 4 players.</p>' : ''}
     ${!r.recorded && (L.teams[0].length === 1) !== single ? '<p class="sub2">' + (single ? 'Singles' : 'Doubles') + ' from the next match. The current match carries on.</p>' : ''}
     ${rows}
+    ${r.recorded || matchFresh() ? '<button class="opt ghost" id="pShuf">Shuffle ' + (r.recorded ? 'next match' : 'players') + '<small>A different fair lineup. Match counts stay even.</small></button>' : ''}
     ${r.recorded ? '<button class="opt" id="pNext" style="margin-top:6px">Start next match<small>Clears the score and sets the team names.</small></button><button class="opt ghost" id="pRe">Rematch, same teams<small>Counts as a normal match. Rotation carries on after it.</small></button>' : ''}
     <button class="opt ghost" id="pDone" style="margin-top:6px">${r.recorded ? 'Not now' : 'Done'}</button>
     <button class="opt danger" id="pEnd">End rotation</button>`);
+  if ($('pShuf')) $('pShuf').onclick = () => { if (rotShuffle()) openPlayers(); };
   if ($('pNext')) $('pNext').onclick = () => { rotNext(); closeSheet(); toast('Next match ready'); };
   if ($('pRe')) $('pRe').onclick = () => { act(() => { const r = S.rot; r.next = { teams: r.lineup.teams.map(t => t.slice()), sit: r.lineup.sit.slice() }; rotAdvance(); freshMatch(); }); closeSheet(); toast('Rematch ready'); };
   document.querySelectorAll('#pRMode button').forEach(b => {
@@ -565,7 +611,8 @@ function render() {
   if (S.rot && S.rot.lineup) {
     const r = S.rot, p = r.players;
     $('stSub').insertAdjacentHTML('afterbegin', r.recorded ? '<span class="pc hot"><b>Next match &rsaquo;</b></span>' :
-      `<span class="pc set rot">Match <b>${r.round + 1}</b>${r.lineup.sit.length ? ' &middot; Out <b>' + esc(r.lineup.sit.map(i => p[i].n).join(', ')) + '</b>' : ''}</span>`);
+      `<span class="pc set rot">Match <b>${r.round + 1}</b>${r.lineup.sit.length ? ' &middot; Out <b>' + esc(r.lineup.sit.map(i => p[i].n).join(', ')) + '</b>' : ''}</span>` +
+      (matchFresh() ? '<button class="pc shuf" id="shufBtn" aria-label="Shuffle players">Shuffle</button>' : ''));
   }
   $('modeLbl').textContent = SPORT_NAMES[S.sport];
   $('help').style.display = S.sport === 'custom' ? 'none' : '';
@@ -643,7 +690,7 @@ function renderPickle() {
   }
   if (k.winner === null && k.last) { main = 'GAME ' + k.last.n + ' TO ' + n[k.last.w]; hl = 'win'; }
   $('stMain').textContent = main; $('stSub').innerHTML = (k.winner === null && k.last ? `<span class="pc hot"><b>${k.last.score[k.last.w]} - ${k.last.score[1 - k.last.w]}</b></span>` : '') + (k.winner === null && sideout && (gpT[0] || gpT[1]) ? `<span class="pc hot"><b>${call}</b></span>` : '') +
-      `<span class="pc set">${k.winner === null && (hl || sideout) && k.bestOf > 1 ? 'Game <b>' + (k.games.length + 1) + '</b> &middot; ' : ''}${k.winBy2 ? 'To <b>' + k.target + '</b> &middot; Win by <b>2</b>' : 'First to <b>' + k.target + '</b>'}${k.bestOf > 1 ? ' &middot; Best of <b>' + k.bestOf + '</b>' : ''}${k.serveMode !== 'off' ? ' &middot; <b>' + (sideout ? (k.singles ? 'Side-out singles' : 'Side-out') : 'Rally') + '</b>' : ''}</span>`;
+      `<span class="pc set">${k.winner === null && (hl || sideout) && k.bestOf > 1 ? 'Game <b>' + (k.games.length + 1) + '</b> &middot; ' : ''}${k.winBy2 ? 'To <b>' + k.target + '</b> &middot; Win by <b>2</b>' + (k.cap > k.target ? ' &middot; Cap <b>' + k.cap + '</b>' : '') : 'First to <b>' + k.target + '</b>'}${k.bestOf > 1 ? ' &middot; Best of <b>' + k.bestOf + '</b>' : ''}${k.serveMode !== 'off' ? ' &middot; <b>' + (sideout ? (k.singles ? 'Side-out singles' : 'Side-out') : 'Rally') + '</b>' : ''}</span>`;
   $('stMain').className = 'main' + (hl ? ' hl ' + hl : '');
   [0, 1].forEach(i => {
     $('score' + i).textContent = k.p[i];
@@ -736,6 +783,8 @@ function openSettings() {
       ${segHtml('sTarget', isCustom ? [[7, '7'], [11, '11'], [15, '15'], [21, '21']] : [[11, '11'], [15, '15'], [21, '21']], k.target)}
       <div class="stepper"><button id="tMinus" aria-label="Decrease">&minus;</button><input id="tVal" type="number" inputmode="numeric" min="1" max="99" value="${k.target}"><button id="tPlus" aria-label="Increase">+</button></div></div>
     <div class="row"><label>Win by</label>${segHtml('sWin', [['2', '2 points'], ['1', 'First to target']], k.winBy2 ? '2' : '1')}</div>
+    ${k.winBy2 ? `<div class="row"><label>Point cap</label>${segHtml('sCap', [['off', 'Off'], ['on', 'On']], k.cap > k.target ? 'on' : 'off')}
+      ${k.cap > k.target ? `<div class="stepper"><button id="cMinus" aria-label="Decrease cap">&minus;</button><input id="cVal" type="number" inputmode="numeric" min="${k.target + 1}" max="99" value="${k.cap}"><button id="cPlus" aria-label="Increase cap">+</button></div><p class="sub2" style="margin:6px 0 0">The first to ${k.cap} wins the game, even by 1 point.</p>` : '<p class="sub2" style="margin:6px 0 0">Stops win-by-2 from going on forever.</p>'}</div>` : ''}
     <div class="row"><label>Match length</label>${segHtml('sBestP', [[1, '1 game'], [3, 'Best of 3'], [5, 'Best of 5']], k.bestOf)}</div>
     ${isCustom ? '' : `<div class="row"><label>Serve tracking</label>${segHtml('sServe', [['off', 'Off'], ['rally', 'Rally'], ['sideout', 'Side-out']], k.serveMode)}</div>
     ${k.serveMode === 'sideout' ? `<div class="row"><label>Players</label>${segHtml('sPl', [['doubles', 'Doubles'], ['singles', 'Singles']], k.singles ? 'singles' : 'doubles')}</div>
@@ -747,8 +796,12 @@ function openSettings() {
     el.querySelectorAll('button').forEach(b => b.onclick = () => { fn(b.dataset.v); openSettings(); }); };
   bind('sBest', v => act(() => { S.tennis.bestOf = +v; }));
   bind('sAd', v => act(() => { S.tennis.noAd = v === 'noad'; }));
-  bind('sTarget', v => act(() => { cur().target = +v; }));
-  const setT = v => { v = Math.max(1, Math.min(99, Math.round(+v) || cur().target)); act(() => { cur().target = v; }); openSettings(); };
+  const fixCap = k => { if (k.cap && k.cap <= k.target) k.cap = Math.min(99, k.target + 4); if (k.cap <= k.target) k.cap = 0; };
+  bind('sTarget', v => act(() => { cur().target = +v; fixCap(cur()); }));
+  bind('sCap', v => act(() => { const k = cur(); k.cap = v === 'on' ? Math.min(99, k.target + 4) : 0; fixCap(k); }));
+  const setC = v => { const k = cur(); v = Math.max(k.target + 1, Math.min(99, Math.round(+v) || k.cap)); act(() => { cur().cap = v; }); openSettings(); };
+  if ($('cVal')) { $('cMinus').onclick = () => setC(cur().cap - 1); $('cPlus').onclick = () => setC(cur().cap + 1); $('cVal').onchange = e => setC(e.target.value); }
+  const setT = v => { v = Math.max(1, Math.min(99, Math.round(+v) || cur().target)); act(() => { cur().target = v; fixCap(cur()); }); openSettings(); };
   if ($('tVal')) { $('tMinus').onclick = () => setT(cur().target - 1); $('tPlus').onclick = () => setT(cur().target + 1);
     $('tVal').onchange = e => setT(e.target.value); }
   bind('sWin', v => act(() => { cur().winBy2 = v === '2'; }));
@@ -779,7 +832,7 @@ function openRules() {
     const k = S.pickle;
     title = 'Pickleball rules';
     items = [
-      '<b>Game:</b> first to ' + k.target + (k.winBy2 ? ', win by 2.' : '.'),
+      '<b>Game:</b> first to ' + k.target + (k.winBy2 ? ', win by 2' + (k.cap > k.target ? ' (first to ' + k.cap + ' wins).' : '.') : '.'),
       '<b>Match:</b> ' + (k.bestOf === 1 ? 'one game.' : 'win ' + Math.ceil(k.bestOf / 2) + ' of ' + k.bestOf + ' games.'),
       '<b>Net:</b> no volleys in the 7-foot "kitchen". Serve and return must bounce first.'];
     serving = [
@@ -824,7 +877,7 @@ function openRules() {
 $('help').onclick = openRules;
 
 /* ---------- wire up ---------- */
-$('stSub').onclick = () => (S.rot && S.rot.recorded) ? openPlayers() : openSettings();
+$('stSub').onclick = e => { if (e.target.closest('#shufBtn')) { rotShuffle(); return; } (S.rot && S.rot.recorded) ? openPlayers() : openSettings(); };
 $('undo').onclick = () => {
   if (!history.length) return;
   S = fixState(JSON.parse(history.pop())); save(); render(); toast('Undone');
