@@ -192,6 +192,7 @@ button:focus-visible,.mc:focus-visible{outline:2px solid var(--a);outline-offset
 .row label{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .row .seg{width:100%}
 .row .seg button{flex:1}
+#pSport button{padding:9px 6px}  /* three sports must fit the 320px iPhone */
 .rules{margin:0 0 14px;padding-left:20px;font-size:16px;line-height:1.4}
 .rules li{margin:0 0 6px}
 .mh{margin:6px 0 10px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
@@ -591,7 +592,7 @@ function rotAfterPoint() {
   rotRecord(r); r.recorded = true; r.next = rotPick(r);
   return true;
 }
-function rotStart(names, mode) { act(() => { S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode, Math.random); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
+function rotStart(names, mode, sport) { act(() => { if (sport) S.sport = sport; S.roster = { names: names.slice(), mode: mode }; S.rot = newRot(names, mode, Math.random); S.rot.lineup = rotPick(S.rot); rotApply(); freshMatch(); }); }
 function rotAdvance() { const r = S.rot; r.lineup = r.next; r.next = null; r.recorded = false; rotApply(); }
 let HDR = { idle: false, unit: '' };
 /* add or remove players mid-session: counts are kept, and the lineup is re-picked only if no point has been played */
@@ -617,7 +618,7 @@ function rotShuffle() {
   return true;
 }
 function rotNext() { act(() => { rotAdvance(); freshMatch(); }); }
-let draftP = null, draftMode = 'doubles', endArm = false;
+let draftP = null, draftMode = 'doubles', endArm = false, draftSport = null;
 /* rename inputs: tap selects the name, Enter or leaving saves; empty reverts, duplicates get a number */
 function bindRename(els, save, others) {
   els.forEach(el => {
@@ -736,6 +737,7 @@ function openPlayerSetup(fresh, opts) {
     draftMode = R ? R.mode : 'doubles';
     draftRot = R ? !!R.rot : false;
     draftSide = R && R.sides && R.sides.length === draftP.length ? R.sides.slice() : null;
+    draftSport = S.sport;
   }
   const single = draftMode === 'singles', min = single ? 2 : 4, team = single ? 1 : 2;
   while (draftP.length < min) draftP.push(pName(draftP.length));
@@ -746,7 +748,8 @@ function openPlayerSetup(fresh, opts) {
   openSheet(`
     <h2>Who's playing?</h2>
     ${opts.note ? '<p>' + opts.note + '</p>' : ''}
-    <div class="row" style="margin-top:0">${segHtml('pMode', [['doubles', 'Doubles'], ['singles', 'Singles']], draftMode)}</div>
+    ${opts.lock ? '' : '<div class="row" style="margin-top:0">' + segHtml('pSport', [['tennis', 'Tennis'], ['pickle', 'Pickleball'], ['custom', 'Custom']], draftSport) + '</div>'}
+    <div class="row" style="margin-top:${opts.lock ? 0 : 8}px">${segHtml('pMode', [['doubles', 'Doubles'], ['singles', 'Singles']], draftMode)}</div>
     ${draftP.map((v, i) => `<div class="prow in"><input class="pin" data-i="${i}" maxlength="12" placeholder="${pName(i)}" value="${esc(v)}" autocomplete="off" autocapitalize="words">${!rot ? segHtml('side' + i, [['L', 'Left'], ['R', 'Right']], draftSide[i]).replace('class="seg"', 'class="seg side"') : ''}${n > min ? `<button class="px" data-rm="${i}" aria-label="Remove ${esc(v || pName(i))}">&times;</button>` : ''}</div>`).join('')}
     <p class="err" id="pErr"></p>
     ${n < 6 ? '<button class="opt ghost" id="pAdd">Add player</button>' : ''}
@@ -764,6 +767,7 @@ function openPlayerSetup(fresh, opts) {
     while (draftP.length > def && draftP[draftP.length - 1].trim() === pName(draftP.length - 1)) draftP.pop();
     again();
   });
+  document.querySelectorAll('#pSport button').forEach(b => b.onclick = () => { sync(); draftSport = b.dataset.v; again(); });
   document.querySelectorAll('#pRot button').forEach(b => b.onclick = () => { sync(); draftRot = b.dataset.v === 'on'; again(); });
   draftP.forEach((_, i) => document.querySelectorAll('#side' + i + ' button').forEach(b => b.onclick = () => {
     sync(); draftSide[i] = b.dataset.v; $('pErr').textContent = '';
@@ -781,18 +785,18 @@ function openPlayerSetup(fresh, opts) {
       const key = nm.toLowerCase(); seen[key] = (seen[key] || 0) + 1;
       return seen[key] > 1 ? nm + ' ' + seen[key] : nm;
     });
-    const m = draftMode, sides = draftSide.slice();
+    const m = draftMode, sides = draftSide.slice(), sp = draftSport || S.sport;
     draftP = null; sheetLock = false; closeSheet();
-    if (rot) { rotStart(names, m); S.roster.rot = true; S.roster.sides = sides; save(); toast('Session started'); return; }
+    if (rot) { rotStart(names, m, sp); S.roster.rot = true; S.roster.sides = sides; save(); toast('Session started'); return; }
     act(() => {
-      S.rot = null; S.swap = false;
+      S.sport = sp; S.rot = null; S.swap = false;
       S.roster = { names: names.slice(), mode: m, rot: false, sides: sides };
       S.names = ['L', 'R'].map(sd => names.filter((_, i) => sides[i] === sd).join(' & '));
       freshMatch();
     });
     toast('Session started');
   };
-  if ($('pCont')) $('pCont').onclick = () => { draftP = null; sheetLock = false; save(); closeSheet(); };
+  if ($('pCont')) $('pCont').onclick = () => { const sp = draftSport; draftP = null; sheetLock = false; if (sp && sp !== S.sport) S.sport = sp; save(); render(); closeSheet(); };
   if ($('pBack')) $('pBack').onclick = () => { draftP = null; closeSheet(); };
 }
 /* player names for team i in doubles, when the app knows them (rotation lineup, or fixed teams from Who's playing? that haven't been renamed) */
@@ -1246,12 +1250,12 @@ function openWelcome() {
 }
 const lastAt = S.at || 0;
 if (firstVisit) { save(); openWelcome(); }
-else if (lastAt && Date.now() - lastAt > 4 * 3600 * 1000) openPlayerSetup(true, { cont: true, note: 'New session? Your last players are filled in.' });
+else if (lastAt && Date.now() - lastAt > 4 * 3600 * 1000) openPlayerSetup(true, { cont: true, note: 'New session? Your last game and players are filled in.' });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-const APP_VERSION = '20261126164029';
+const APP_VERSION = '20261127031654';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
