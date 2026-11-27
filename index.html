@@ -141,7 +141,9 @@ button:disabled{opacity:.35;cursor:default}
 .vs .s b{color:var(--text);font-weight:600}
 
 /* sheets */
-html.fit #app,html.fit .scrim{bottom:auto;height:var(--appH)}  /* iOS Home Screen app: see fitScreen() */
+/* iOS Home Screen app: the window already stops short of the home indicator, so don't add its safe area again (see fitScreen) */
+html.fit #app{padding-bottom:max(6px,calc(env(safe-area-inset-bottom) - var(--miss)))}
+html.fit .scrim{padding-bottom:calc(12px + max(0px,calc(env(safe-area-inset-bottom) - var(--miss))))}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
 .scrim.show{display:flex}
 .sheet{background:var(--panel);border-radius:22px;padding:22px;width:min(460px,100%);box-shadow:0 0 0 1px var(--line) inset;max-height:min(92dvh,100%);overflow:auto}
@@ -1256,30 +1258,30 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 /* pick up new versions: Home Screen apps resume without reloading, so check when the app comes back to the front */
-/* iOS 26 and 27 give Home Screen apps a viewport about a Safari toolbar short of the screen, which left an empty strip at the bottom.
-   In an installed iPhone or iPad app that fills the screen, size the app to the real screen height instead. Safari tabs, Android and
-   split-screen iPads are left alone. */
+/* iOS 26 and 27 Home Screen apps get a window that stops short of the bottom of the screen, and iOS draws nothing below it, so
+   sizing the app to the full screen cut off the + POINT buttons. Instead, keep the app to the window and drop the bottom safe-area
+   padding the window already leaves out. Safari tabs, Android and split-screen iPads are left alone. */
 function fitScreen() {
   const root = document.documentElement;
   const ae = document.activeElement;
-  if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;   // keyboard up: leave the size alone until typing ends
-  let h = 0;
+  if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;   // keyboard up: leave it alone until typing ends
+  let miss = 0;
   try {
     if (navigator.standalone === true) {
       const portrait = matchMedia('(orientation: portrait)').matches;
       const a = screen.width, b = screen.height;
       const w = portrait ? Math.min(a, b) : Math.max(a, b);
       const sh = portrait ? Math.max(a, b) : Math.min(a, b);
-      if (Math.abs(innerWidth - w) <= 2 && sh > innerHeight + 1) h = sh;
+      if (Math.abs(innerWidth - w) <= 2 && sh > innerHeight + 1) miss = sh - innerHeight;
     }
   } catch (e) {}
-  if (h) { root.style.setProperty('--appH', h + 'px'); root.classList.add('fit'); }
-  else { root.style.removeProperty('--appH'); root.classList.remove('fit'); }
+  if (miss) { root.style.setProperty('--miss', miss + 'px'); root.classList.add('fit'); }
+  else { root.style.removeProperty('--miss'); root.classList.remove('fit'); }
 }
 fitScreen();
 ['resize', 'orientationchange', 'pageshow', 'focusout'].forEach(ev => addEventListener(ev, () => setTimeout(fitScreen, 120)));
 if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(fitScreen, 120));
-const APP_VERSION = '20261127073650';
+const APP_VERSION = '20261127074257';
 function checkUpdate() {
   if (!location.protocol.startsWith('http') || APP_VERSION.indexOf('BUILD') >= 0) return;
   if ($('scrim').classList.contains('show')) return;   // never reload under an open sheet
